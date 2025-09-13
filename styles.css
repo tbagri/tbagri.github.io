@@ -1,3 +1,82 @@
+body {
+	font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+	background: #f4f6fa;
+	color: #222;
+}
+
+.main-content {
+	max-width: 900px;
+	margin: 40px auto 32px auto;
+	display: flex;
+	flex-direction: column;
+	gap: 32px;
+}
+
+.card {
+	background: #fff;
+	border-radius: 14px;
+	box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+	padding: 32px 28px 24px 28px;
+	margin-bottom: 0;
+}
+
+.card h2 {
+	font-size: 1.7em;
+	margin-bottom: 0.7em;
+	font-weight: 600;
+}
+
+.card p, .card ul {
+	font-size: 1.13em;
+	line-height: 1.7;
+}
+
+.results-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+	gap: 28px;
+	margin-top: 18px;
+}
+
+.result-card {
+	background: #f8f9fb;
+	border-radius: 10px;
+	box-shadow: 0 1px 6px rgba(0,0,0,0.04);
+	padding: 18px 14px 14px 14px;
+	text-align: center;
+}
+
+.result-card img {
+	max-width: 100%;
+	border-radius: 7px;
+	margin-bottom: 10px;
+	box-shadow: 0 1px 8px rgba(0,0,0,0.07);
+}
+
+.result-title {
+	font-weight: 600;
+	font-size: 1.08em;
+	margin-bottom: 6px;
+}
+
+.result-details {
+	font-size: 0.98em;
+	color: #444;
+}
+
+.discussion-list {
+	margin-top: 0.5em;
+	padding-left: 1.2em;
+}
+
+@media (max-width: 600px) {
+	.main-content {
+		padding: 0 6px;
+	}
+	.card {
+		padding: 18px 8px 14px 8px;
+	}
+}
 .section {
 	margin-bottom: 48px;
 }
@@ -56,8 +135,8 @@ a.button:hover {
 }
 
 .styled-img {
-	max-width: 320px;
-	margin: 1em;
+	max-width: 250px;
+	margin: 0.5em;
 	border-radius: 8px;
 	box-shadow: 0 2px 12px rgba(0,0,0,0.18);
 }
@@ -67,4 +146,13 @@ a.button:hover {
 	font-size: 0.95rem;
 	color: #444;
 	margin-top: 8px;
+}
+
+.img-row {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 18px;
+	justify-items: center;
+	align-items: start;
+	margin: 24px 0;
 }

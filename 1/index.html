@@ -1,15 +1,192 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Project 1</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-        }
-    </style>
+    <title>Project 1: Images of the Russian Empire</title>
+    <link rel="stylesheet" href="../styles.css">
 </head>
-<body>
-    <h1>Project 1</h1>
+<body class="centered">
+    <div class="banner">Project 1</div>
+
+    <div class="main-content">
+        <div class="card">
+            <h2>Overview</h2>
+                <p>
+                    This project reconstructs color photographs from digitized Prokudin-Gorskii glass plates by aligning three monochrome exposures. Sergei M. Prokudin-Gorskii (1863–1944) recorded scenes through blue, green, and red filters; reassembling these requires precise registration across channels so that edges and textures coincide without color fringing.
+                </p>
+                <p>
+                    I treat small JPGs and large TIFs differently for speed and stability. Each plate is split into three stacked slices (top→bottom: B, G, R). Using the Blue slice as the anchor, I estimate pure translational shifts (x, y) to align Green and Red to Blue, then stack the aligned channels into RGB and finish with light contrast normalization.
+                </p>
+        </div>
+
+        <div class="card">
+            <h2>Method</h2>
+                <p>A dual strategy is used, chosen by image resolution and runtime budget:</p>
+                <ul>
+                    <li><strong>Windowed search at native scale:</strong> For small JPGs (~400×300), test a finite displacement window exhaustively.</li>
+                    <li><strong>Coarse-to-fine image pyramid:</strong> For large TIFs (~3000×1000), align at low resolution first and refine as the scale increases.</li>
+                </ul>
+                <p>All variants follow the same high-level recipe:</p>
+                <ol>
+                    <li><strong>Channel slicing:</strong> Partition the plate into three equal vertical bands (B, G, R).</li>
+                    <li><strong>Anchor choice:</strong> Fix Blue as the reference frame.</li>
+                    <li><strong>Registration:</strong> Estimate (x, y) translations to bring G and R into Blue’s coordinates.</li>
+                    <li><strong>Color compose:</strong> Stack the registered channels into an RGB image.</li>
+                    <li><strong>Finishing pass:</strong> Apply a gentle contrast adjustment and export as JPEG.</li>
+                </ol>
+        </div>
+
+        <div class="card">
+            <h2>Results: Single-scale alignment </h2>
+                <h3>Native-Scale Search (Small Images)</h3>
+                <h4>Search Window</h4>
+                <p>
+                    For JPGs, I sweep a ±15-pixel window in x and y (31×31 = 961 candidates), evaluating only the central region with a 5% border crop (minimum 5 pixels) to avoid edge artifacts. The default metric is Normalized Cross-Correlation (NCC), but SSD and gradient-NCC are also available. The search cost is modest at this size.
+                </p>
+                <h4>Matching Objectives</h4>
+                <ul>
+                    <li><strong>Sum of Squared Differences (SSD):</strong> Penalizes squared intensity mismatches; lower is better. Fast and effective when brightness is comparable across channels.</li>
+                    <li><strong>Normalized Cross-Correlation (NCC):</strong> Compares zero-mean patches; higher is better. More tolerant to exposure differences between channels. Used as the default metric.</li>
+                    <li><strong>Gradient-NCC:</strong> Compares gradients of the channels for robust alignment in strongly colored or textured regions.</li>
+                </ul>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="aligned_single/cathedral.jpg" alt="Cathedral Aligned">
+                        <div class="result-title">Cathedral</div>
+                        <div class="result-details">G offset: (5, 2) | R offset: (12, 3)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="aligned_single/monastery.jpg" alt="Monastery Aligned">
+                        <div class="result-title">Monastery</div>
+                        <div class="result-details">G offset: (-3, 2) | R offset: (3, 2)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="aligned_single/tobolsk.jpg" alt="Tobolsk Aligned">
+                        <div class="result-title">Tobolsk</div>
+                        <div class="result-details">G offset: (3, 3) | R offset: (6, 3)</div>
+                    </div>
+                </div>
+        </div>
+
+        <div class="card">
+            <h2>Results: Multi-scale alignment </h2>
+                <h3>Coarse-to-Fine Pyramid (Large Images)</h3>
+                <h4>Pyramid Strategy</h4>
+                <p>
+                    For TIFs with dimensions &gt; 1000 px, I construct a pyramid with up to 6 levels (scaling by 0.5 each time, minimum side 200 pixels). Alignment starts at the coarsest level with a wide window (±20 pixels), then propagates upward: scale the displacement by 2 and search locally (±4 pixels) at each finer level. NCC with a 5% border crop (minimum 5 pixels) is used at all scales. The pyramid approach efficiently recovers large shifts in high-res scans.
+                </p>
+                <ol>
+                    <li><strong>Build pyramids:</strong> Up to 6 levels, scaling by 0.5, minimum side 200 pixels.</li>
+                    <li><strong>Coarse pass:</strong> Exhaustive search at the smallest scale (±20 pixels).</li>
+                    <li><strong>Refine:</strong> Upscale the estimate and search in a small neighborhood (±4 pixels) per level.</li>
+                    <li><strong>Compose:</strong> Apply final shifts, roll channels, and merge to RGB.</li>
+                </ol>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="aligned_multi/cathedral.jpg" alt="Cathedral Aligned">
+                        <div class="result-title">Cathedral (pyramid)</div>
+                        <div class="result-details">G offset: (5, 2)<br>R offset: (12, 3)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="aligned_multi/monastery.jpg" alt="Monastery Aligned">
+                        <div class="result-title">Monastery (pyramid)</div>
+                        <div class="result-details">G offset: (-3, 2)<br>R offset: (3, 2)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="aligned_multi/tobolsk.jpg" alt="Tobolsk Aligned">
+                        <div class="result-title">Tobolsk (pyramid)</div>
+                        <div class="result-details">G offset: (3, 3)<br>R offset: (6, 3)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="aligned_multi/harvesters.jpg" alt="Harvesters Aligned">
+                        <div class="result-title">Harvesters</div>
+                        <div class="result-details">G offset: (60, 16)<br>R offset: (124, 14)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="aligned_multi/emir.jpg" alt="Emir Aligned">
+                        <div class="result-title">Emir</div>
+                        <div class="result-details">G offset: (49, 24)<br>R offset: (104, 44)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="aligned_multi/italil.jpg" alt="Italil Aligned">
+                        <div class="result-title">Italil</div>
+                        <div class="result-details">G offset: (38, 21)<br>R offset: (77, 35)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="aligned_multi/church.jpg" alt="Church Aligned">
+                        <div class="result-title">Church</div>
+                        <div class="result-details">G offset: (25, 4)<br>R offset: (58, -5)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="aligned_multi/three_generations.jpg" alt="Three Generations Aligned">
+                        <div class="result-title">Three Generations</div>
+                        <div class="result-details">G offset: (55, 13)<br>R offset: (112, 10)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="aligned_multi/lugano.jpg" alt="Lugano Aligned">
+                        <div class="result-title">Lugano</div>
+                        <div class="result-details">G offset: (41, -17)<br>R offset: (92, -28)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="aligned_multi/melons.jpg" alt="Melons Aligned">
+                        <div class="result-title">Melons</div>
+                        <div class="result-details">G offset: (82, 9)<br>R offset: (177, 11)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="aligned_multi/lastochikino.jpg" alt="Lastochikino Aligned">
+                        <div class="result-title">Lastochikino</div>
+                        <div class="result-details">G offset: (-3, -2)<br>R offset: (76, -9)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="aligned_multi/icon.jpg" alt="Icon Aligned">
+                        <div class="result-title">Icon</div>
+                        <div class="result-details">G offset: (41, 17)<br>R offset: (89, 23)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="aligned_multi/siren.jpg" alt="Siren Aligned">
+                        <div class="result-title">Siren</div>
+                        <div class="result-details">G offset: (49, -7)<br>R offset: (96, -25)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="aligned_multi/self_portrait.jpg" alt="Self Portrait Aligned">
+                        <div class="result-title">Self Portrait</div>
+                        <div class="result-details">G offset: (78, 26)<br>R offset: (175, 34)</div>
+                    </div>
+                </div>
+        </div>
+
+        <div class="card">
+            <h2>Discussion</h2>
+                <ul class="discussion-list">
+                    <li>Interior regions align sharply; minor color fringing near borders stems from plate edges and imperfect crops.</li>
+                    <li>NCC handles exposure differences well; SSD is a strong baseline when intensities are comparable.</li>
+                    <li>The pyramid was key to recovering large shifts on high-res scans without excessive compute.</li>
+                    <li>A few difficult scenes retain slight residual error, but the overall visual quality is consistent.</li>
+                    <li>A problem I ran into was that that I originally defined border_ignore as a set number of pixels rather than a percentage, it only worked on the small jpg images but there were many artifacts in the larger tif images.</li>
+                </ul>
+        </div>
+
+        <div class="card">
+            <h2>My Selected Examples (using Multi-scale alignment)</h2>
+            <div class="results-grid">
+                <div class="result-card">
+                    <img src="aligned_custom/turkmenia.jpg" alt="Turkemenia">
+                    <div class="result-title">Turkemenia</div>
+                    <div class="result-details">G offset: (-7, 28)<br>R offset: (-18, 108)</div>
+                </div>
+                <div class="result-card">
+                    <img src="aligned_custom/petrozavodska.jpg" alt="Petrozavodska">
+                    <div class="result-title">Petrozavodska</div>
+                    <div class="result-details">G offset: (-16, 44)<br>R offset: (-25, 111)</div>
+                </div>
+                <div class="result-card">
+                    <img src="aligned_custom/shlifovki.jpg" alt="Shlifovki">
+                    <div class="result-title">Shlifovki</div>
+                    <div class="result-details">G offset: (-18, 62)<br>R offset: (-45, 117)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <a href="../index.html" class="button">Back to Home</a>
 </body>
 </html>
