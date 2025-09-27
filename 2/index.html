@@ -139,22 +139,6 @@ def convolution_2loops(image, kernel):
                 <p>
                     I applied finite difference operators Dx and Dy to the cameraman image to compute partial derivatives, then calculated the gradient magnitude. To create a clean edge map, I binarized the gradient magnitude image using a threshold I selected by testing different values until I found one that showed all the main edges while minimizing noise.
                 </p>
-                <pre><code>
-# Finite difference operators (1D kernels)
-Dx = np.array([[1, 0, -1]])  # Horizontal gradient
-Dy = np.array([[1], [0], [-1]])  # Vertical gradient
-
-# Compute partial derivatives
-cameraman_dx = scipy.signal.convolve2d(cameraman, Dx, mode='same', boundary='fill', fillvalue=0)
-cameraman_dy = scipy.signal.convolve2d(cameraman, Dy, mode='same', boundary='fill', fillvalue=0)
-
-# Compute gradient magnitude
-cameraman_gradient_magnitude = np.sqrt(cameraman_dx**2 + cameraman_dy**2)
-
-# Binarize gradient magnitude image with threshold
-THRESHOLD = 0.20  # Selected qualitatively
-cameraman_edges = (cameraman_gradient_magnitude > THRESHOLD).astype(np.uint8) * 255
-                </code></pre>
                 <div class="results-grid">
                     <div class="result-card">
                         <img src="part1_2_outputs/cameraman.png" alt="Original Cameraman">
@@ -190,28 +174,6 @@ cameraman_edges = (cameraman_gradient_magnitude > THRESHOLD).astype(np.uint8) * 
                 <p>
                     To improve the noisy results from the finite difference operator, I first smoothed the image using a Gaussian filter. I then applied the finite difference operators to the smoothed image. To verify the properties of convolutions, I also created Derivative of Gaussian (DoG) filters by convolving the Gaussian filter with the Dx and Dy operators, then applied these directly to the original image to confirm I got the same results.
                 </p>
-                <pre><code>
-# Create 2D Gaussian filter
-KERNEL_SIZE = 9
-SIGMA = 1.0
-gaussian_1d = cv2.getGaussianKernel(KERNEL_SIZE, SIGMA)
-gaussian_2d = np.outer(gaussian_1d, gaussian_1d.T)
-
-# Apply Gaussian smoothing to cameraman image
-cameraman_blurred = scipy.signal.convolve2d(cameraman, gaussian_2d, mode='same', boundary='fill', fillvalue=0)
-
-# Apply finite difference operators to blurred image
-cameraman_blurred_dx = scipy.signal.convolve2d(cameraman_blurred, Dx, mode='same', boundary='fill', fillvalue=0)
-cameraman_blurred_dy = scipy.signal.convolve2d(cameraman_blurred, Dy, mode='same', boundary='fill', fillvalue=0)
-
-# Create derivative of Gaussian (DoG) filters
-dog_x = scipy.signal.convolve2d(gaussian_2d, Dx, mode='same', boundary='fill', fillvalue=0)
-dog_y = scipy.signal.convolve2d(gaussian_2d, Dy, mode='same', boundary='fill', fillvalue=0)
-
-# Apply DoG filters directly to original cameraman image
-cameraman_dog_dx = scipy.signal.convolve2d(cameraman, dog_x, mode='same', boundary='fill', fillvalue=0)
-cameraman_dog_dy = scipy.signal.convolve2d(cameraman, dog_y, mode='same', boundary='fill', fillvalue=0)
-                </code></pre>
                 <div class="results-grid">
                     <div class="result-card">
                         <img src="part1_3_outputs/gaussian_filter.png" alt="2D Gaussian Filter" class="filter-visualization">
@@ -304,39 +266,6 @@ cameraman_dog_dy = scipy.signal.convolve2d(cameraman, dog_y, mode='same', bounda
                 <p>
                     The Gaussian filter acts as a low-pass filter that retains only low frequencies (smooth areas). When we subtract the blurred version from the original image, we get the high frequencies (edges and details). Adding some of these high frequencies back to the original makes the image appear sharper by enhancing edge contrast.
                 </p>
-                <h4>Code Implementation</h4>
-                <pre><code>
-# Create unsharp mask filter
-def create_unsharp_mask_filter(kernel_size, sigma, amount):
-    """
-    Create unsharp mask filter: original + amount * (original - blurred)
-    This is equivalent to: (1 + amount) * original - amount * blurred
-    """
-    # Create Gaussian kernel
-    gaussian_1d = cv2.getGaussianKernel(kernel_size, sigma)
-    gaussian_2d = np.outer(gaussian_1d, gaussian_1d.T)
-    
-    # Unsharp mask filter: (1 + amount) * delta - amount * gaussian
-    unsharp_filter = (1 + amount) * np.eye(kernel_size) - amount * gaussian_2d
-    
-    return unsharp_filter
-
-# Apply unsharp masking
-def apply_unsharp_mask(image, kernel_size=9, sigma=1.0, amount=1.0):
-    """
-    Apply unsharp masking to sharpen an image
-    """
-    # Method 1: Two-step process
-    blurred = scipy.signal.convolve2d(image, gaussian_2d, mode='same')
-    high_freq = image - blurred
-    sharpened = image + amount * high_freq
-    
-    # Method 2: Single convolution with unsharp mask filter
-    unsharp_filter = create_unsharp_mask_filter(kernel_size, sigma, amount)
-    sharpened_single = scipy.signal.convolve2d(image, unsharp_filter, mode='same')
-    
-    return sharpened, high_freq, blurred
-                </code></pre>
                 
                 <h4>Gaussian Filter Visualization</h4>
                 <div class="results-grid">
@@ -445,41 +374,6 @@ def apply_unsharp_mask(image, kernel_size=9, sigma=1.0, amount=1.0):
                 <p>
                     The process involves low-pass filtering one image (using Gaussian filter) to extract low frequencies, high-pass filtering another image (original minus Gaussian-filtered) to extract high frequencies, then combining them. The cutoff frequency for each filter requires experimentation to achieve the best perceptual effect.
                 </p>
-                <h4>Code Implementation</h4>
-                <pre><code>
-# Create hybrid image
-def create_hybrid_image(image1, image2, cutoff_freq1, cutoff_freq2):
-    """
-    Create hybrid image by combining low-freq of image1 with high-freq of image2
-    """
-    # Create Gaussian filters with different cutoff frequencies
-    gaussian1 = cv2.getGaussianKernel(2*cutoff_freq1+1, cutoff_freq1/3)
-    gaussian1_2d = np.outer(gaussian1, gaussian1.T)
-    
-    gaussian2 = cv2.getGaussianKernel(2*cutoff_freq2+1, cutoff_freq2/3)
-    gaussian2_2d = np.outer(gaussian2, gaussian2.T)
-    
-    # Low-pass filter image1 (keep low frequencies)
-    low_freq = scipy.signal.convolve2d(image1, gaussian1_2d, mode='same')
-    
-    # High-pass filter image2 (keep high frequencies)
-    blurred2 = scipy.signal.convolve2d(image2, gaussian2_2d, mode='same')
-    high_freq = image2 - blurred2
-    
-    # Combine low and high frequencies
-    hybrid = low_freq + high_freq
-    
-    return hybrid, low_freq, high_freq
-
-# Align images (important for perceptual grouping)
-def align_images(img1, img2):
-    """
-    Align two images for better hybrid results
-    """
-    # Implementation would involve feature detection and alignment
-    # For now, assuming images are pre-aligned
-    return img1, img2
-                </code></pre>
                 
                 <h4>Derek + Nutmeg Hybrid: Complete Process</h4>
                 <p>
