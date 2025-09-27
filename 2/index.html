@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Project 2: Fun with Filters</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body class="centered">
+    <div class="banner">Project 2</div>
+
+    <div class="main-content">
+        <div class="card">
+            <h2>Overview</h2>
+                <p>
+                    This project explores 2D convolutions and filtering techniques, building intuitions about image processing through hands-on implementation. We begin with finite difference operators and progress to more sophisticated filtering methods including Gaussian smoothing and Derivative of Gaussian (DoG) filters.
+                </p>
+                <p>
+                    The project is divided into three main parts: implementing convolution from scratch, applying finite difference operators for edge detection, and exploring Gaussian-based filtering techniques. Each section builds upon the previous one, demonstrating the evolution from basic operations to more robust edge detection methods.
+                </p>
+        </div>
+
+        <div class="card">
+            <h2>Part 1: Fun with Filters</h2>
+                <p>This section focuses on building intuitions about 2D convolutions and filtering, beginning with finite difference operators and progressing to more sophisticated filtering techniques.</p>
+                <ul>
+                    <li><strong>Convolution Implementation:</strong> Implement convolution from scratch using both four-loop and two-loop approaches with proper padding</li>
+                    <li><strong>Finite Difference Operators:</strong> Apply Dx and Dy operators for edge detection and gradient computation</li>
+                    <li><strong>Gaussian Filtering:</strong> Explore smoothing with Gaussian filters and Derivative of Gaussian (DoG) filters</li>
+                </ul>
+                <p>The implementation uses numpy for array operations and includes comparison with scipy.signal.convolve2d for validation. All filtering operations are applied to grayscale images for consistent analysis.</p>
+                <ol>
+                    <li><strong>Convolution from Scratch:</strong> Implement custom convolution with zero-padding and compare with built-in functions</li>
+                    <li><strong>Box Filter Application:</strong> Apply 9x9 box filter and finite difference operators to self-portrait</li>
+                    <li><strong>Edge Detection:</strong> Compute partial derivatives and gradient magnitude for edge identification</li>
+                    <li><strong>Gaussian Smoothing:</strong> Create Gaussian filters and apply smoothing before edge detection</li>
+                    <li><strong>DoG Filtering:</strong> Implement Derivative of Gaussian filters for improved edge detection</li>
+                </ol>
+        </div>
+
+        <div class="card">
+            <h2>Part 1.1: Convolutions from Scratch!</h2>
+                <h3>Implementation Details</h3>
+                <h4>My Implementation Process</h4>
+                <p>
+                    I implemented convolution from scratch using two different approaches: a four-loop version for clarity and a two-loop version for better performance. Both handle boundaries by padding the input image with zeros to maintain consistent output dimensions. I then compared these with scipy.signal.convolve2d to verify correctness and measure performance differences.
+                </p>
+                <h4>Code Implementation</h4>
+                <pre><code>
+# Four-loop implementation
+def convolution_4loops(image, kernel):
+    """
+    Naïve 4-loop 2D convolution with zero padding ("same" size).
+    """
+    img_h, img_w = image.shape
+    kh, kw = kernel.shape
+    padded = np.pad(image, ((kh // 2, kh // 2), (kw // 2, kw // 2)),
+                    mode='constant', constant_values=0.0)
+    out = np.zeros_like(image, dtype=np.float32)
+    kf = kernel[::-1, ::-1].astype(np.float32)  # flip for convolution
+
+    for out_y in range(img_h):
+        for out_x in range(img_w):
+            acc = 0.0
+            for ky in range(kh):
+                for kx in range(kw):
+                    acc += padded[out_y + ky, out_x + kx] * kf[ky, kx]
+            out[out_y, out_x] = acc
+    return out
+
+# Two-loop implementation  
+def convolution_2loops(image, kernel):
+    """
+    2-loop 2D convolution with zero padding ("same" size).
+    Uses a vectorized multiply & sum over each local window.
+    """
+    img_h, img_w = image.shape
+    kh, kw = kernel.shape
+    padded = np.pad(image, ((kh // 2, kh // 2), (kw // 2, kw // 2)),
+                    mode='constant', constant_values=0.0)
+    out = np.zeros_like(image, dtype=np.float32)
+    kf = kernel[::-1, ::-1].astype(np.float32)  # flip for convolution
+
+    for out_y in range(img_h):
+        for out_x in range(img_w):
+            patch = padded[out_y:out_y + kh, out_x:out_x + kw]
+            out[out_y, out_x] = np.sum(patch * kf, dtype=np.float32)
+    return out
+
+                </code></pre>
+                
+                <h4>Performance Results</h4>
+                <p>
+                    I timed all three implementations on my selfie image to compare performance:
+                </p>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <div class="result-title">4-Loop Implementation</div>
+                        <div class="result-details">14.313 seconds</div>
+                    </div>
+                    <div class="result-card">
+                        <div class="result-title">2-Loop Implementation</div>
+                        <div class="result-details">2.204 seconds</div>
+                    </div>
+                    <div class="result-card">
+                        <div class="result-title">SciPy Implementation</div>
+                        <div class="result-details">0.089 seconds</div>
+                    </div>
+                </div>
+                <p>
+                    As expected, the two-loop version was faster than the four-loop version, and SciPy was the fastest. All three methods produced identical results, confirming my implementation was correct.
+                </p>
+                
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part1_1_outputs/selfie_grayscale.png" alt="Original Selfie">
+                        <div class="result-title">Original Selfie</div>
+                        <div class="result-details">Grayscale self-portrait for filtering experiments</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part1_1_outputs/selfie_box_filter.png" alt="Box Filter Result">
+                        <div class="result-title">9x9 Box Filter</div>
+                        <div class="result-details">Result after applying 9x9 box filter (blurred effect)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part1_1_outputs/selfie_dx.png" alt="Dx Finite Difference">
+                        <div class="result-title">Dx Finite Difference</div>
+                        <div class="result-details">Partial derivative in x-direction (vertical edges)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part1_1_outputs/selfie_dy.png" alt="Dy Finite Difference">
+                        <div class="result-title">Dy Finite Difference</div>
+                        <div class="result-details">Partial derivative in y-direction (horizontal edges)</div>
+                    </div>
+                </div>
+        </div>
+
+        <div class="card">
+            <h2>Part 1.2: Finite Difference Operator</h2>
+                <h3>My Edge Detection Process</h3>
+                <p>
+                    I applied finite difference operators Dx and Dy to the cameraman image to compute partial derivatives, then calculated the gradient magnitude. To create a clean edge map, I binarized the gradient magnitude image using a threshold I selected by testing different values until I found one that showed all the main edges while minimizing noise.
+                </p>
+                <pre><code>
+# Finite difference operators (1D kernels)
+Dx = np.array([[1, 0, -1]])  # Horizontal gradient
+Dy = np.array([[1], [0], [-1]])  # Vertical gradient
+
+# Compute partial derivatives
+cameraman_dx = scipy.signal.convolve2d(cameraman, Dx, mode='same', boundary='fill', fillvalue=0)
+cameraman_dy = scipy.signal.convolve2d(cameraman, Dy, mode='same', boundary='fill', fillvalue=0)
+
+# Compute gradient magnitude
+cameraman_gradient_magnitude = np.sqrt(cameraman_dx**2 + cameraman_dy**2)
+
+# Binarize gradient magnitude image with threshold
+THRESHOLD = 0.20  # Selected qualitatively
+cameraman_edges = (cameraman_gradient_magnitude > THRESHOLD).astype(np.uint8) * 255
+                </code></pre>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part1_2_outputs/cameraman.png" alt="Original Cameraman">
+                        <div class="result-title">Original Cameraman</div>
+                        <div class="result-details">Input image for edge detection</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part1_2_outputs/cameraman_dx.png" alt="Partial Derivative X">
+                        <div class="result-title">∂I/∂x</div>
+                        <div class="result-details">Partial derivative in x-direction (vertical edges)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part1_2_outputs/cameraman_dy.png" alt="Partial Derivative Y">
+                        <div class="result-title">∂I/∂y</div>
+                        <div class="result-details">Partial derivative in y-direction (horizontal edges)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part1_2_outputs/cameraman_gradient_magnitude.png" alt="Gradient Magnitude">
+                        <div class="result-title">Gradient Magnitude</div>
+                        <div class="result-details">√(Ix² + Iy²) - shows edge strength</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part1_2_outputs/cameraman_edges.png" alt="Binary Edges">
+                        <div class="result-title">Binary Edge Image</div>
+                        <div class="result-details">Thresholded gradient magnitude (threshold = 0.20)</div>
+                    </div>
+                </div>
+        </div>
+
+        <div class="card">
+            <h2>Part 1.3: Derivative of Gaussian (DoG) Filter</h2>
+                <h3>My Gaussian Filtering Process</h3>
+                <p>
+                    To improve the noisy results from the finite difference operator, I first smoothed the image using a Gaussian filter. I then applied the finite difference operators to the smoothed image. To verify the properties of convolutions, I also created Derivative of Gaussian (DoG) filters by convolving the Gaussian filter with the Dx and Dy operators, then applied these directly to the original image to confirm I got the same results.
+                </p>
+                <pre><code>
+# Create 2D Gaussian filter
+KERNEL_SIZE = 9
+SIGMA = 1.0
+gaussian_1d = cv2.getGaussianKernel(KERNEL_SIZE, SIGMA)
+gaussian_2d = np.outer(gaussian_1d, gaussian_1d.T)
+
+# Apply Gaussian smoothing to cameraman image
+cameraman_blurred = scipy.signal.convolve2d(cameraman, gaussian_2d, mode='same', boundary='fill', fillvalue=0)
+
+# Apply finite difference operators to blurred image
+cameraman_blurred_dx = scipy.signal.convolve2d(cameraman_blurred, Dx, mode='same', boundary='fill', fillvalue=0)
+cameraman_blurred_dy = scipy.signal.convolve2d(cameraman_blurred, Dy, mode='same', boundary='fill', fillvalue=0)
+
+# Create derivative of Gaussian (DoG) filters
+dog_x = scipy.signal.convolve2d(gaussian_2d, Dx, mode='same', boundary='fill', fillvalue=0)
+dog_y = scipy.signal.convolve2d(gaussian_2d, Dy, mode='same', boundary='fill', fillvalue=0)
+
+# Apply DoG filters directly to original cameraman image
+cameraman_dog_dx = scipy.signal.convolve2d(cameraman, dog_x, mode='same', boundary='fill', fillvalue=0)
+cameraman_dog_dy = scipy.signal.convolve2d(cameraman, dog_y, mode='same', boundary='fill', fillvalue=0)
+                </code></pre>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part1_3_outputs/gaussian_filter.png" alt="2D Gaussian Filter" class="filter-visualization">
+                        <div class="result-title">2D Gaussian Filter</div>
+                        <div class="result-details">9x9 Gaussian kernel (σ=1.0)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part1_3_outputs/dog_x_filter.png" alt="DoG X Filter" class="filter-visualization">
+                        <div class="result-title">DoG X Filter</div>
+                        <div class="result-details">Derivative of Gaussian in x-direction</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part1_3_outputs/dog_y_filter.png" alt="DoG Y Filter" class="filter-visualization">
+                        <div class="result-title">DoG Y Filter</div>
+                        <div class="result-details">Derivative of Gaussian in y-direction</div>
+                    </div>
+                </div>
+                
+                <h4>Two-Step Process: Gaussian Smoothing + Finite Differences</h4>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part1_3_outputs/cameraman_blurred.png" alt="Smoothed Image">
+                        <div class="result-title">Gaussian Smoothed</div>
+                        <div class="result-details">Cameraman after Gaussian smoothing</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part1_3_outputs/cameraman_blurred_dx.png" alt="Smoothed Dx">
+                        <div class="result-title">Smoothed ∂I/∂x</div>
+                        <div class="result-details">Partial derivative after smoothing</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part1_3_outputs/cameraman_blurred_dy.png" alt="Smoothed Dy">
+                        <div class="result-title">Smoothed ∂I/∂y</div>
+                        <div class="result-details">Partial derivative after smoothing</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part1_3_outputs/cameraman_blurred_gradient_magnitude.png" alt="Smoothed Gradient Magnitude">
+                        <div class="result-title">Smoothed Gradient Magnitude</div>
+                        <div class="result-details">Edge strength after smoothing</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part1_3_outputs/cameraman_blurred_edges.png" alt="Smoothed Edge Detection">
+                        <div class="result-title">Smoothed Edge Detection</div>
+                        <div class="result-details">Edges after Gaussian smoothing + finite differences</div>
+                    </div>
+                </div>
+                
+                <h4>One-Step Process: Direct DoG Filtering</h4>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part1_3_outputs/cameraman_dog_dx.png" alt="DoG Dx">
+                        <div class="result-title">DoG ∂I/∂x</div>
+                        <div class="result-details">Direct DoG filter in x-direction</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part1_3_outputs/cameraman_dog_dy.png" alt="DoG Dy">
+                        <div class="result-title">DoG ∂I/∂y</div>
+                        <div class="result-details">Direct DoG filter in y-direction</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part1_3_outputs/cameraman_dog_gradient_magnitude.png" alt="DoG Gradient Magnitude">
+                        <div class="result-title">DoG Gradient Magnitude</div>
+                        <div class="result-details">Edge strength using DoG filters</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part1_3_outputs/cameraman_dog_edges.png" alt="DoG Edge Detection">
+                        <div class="result-title">DoG Edge Detection</div>
+                        <div class="result-details">Edges using DoG filters (equivalent result)</div>
+                    </div>
+                </div>
+        </div>
+
+        <div class="card">
+            <h2>Key Insights and Conclusions</h2>
+                <ul class="discussion-list">
+                    <li><strong>Convolution Properties:</strong> This project demonstrates the associative property of convolution operations, where applying a DoG filter directly produces identical results to the two-step process of Gaussian smoothing followed by finite differences.</li>
+                    <li><strong>Noise vs. Edge Preservation Trade-off:</strong> The progression from raw finite differences to Gaussian-smoothed edge detection illustrates the fundamental trade-off between noise suppression and edge localization accuracy in computer vision.</li>
+                    <li><strong>Implementation Efficiency:</strong> While custom implementations provide valuable learning insights, optimized libraries like SciPy offer significant performance advantages for production applications.</li>
+                    <li><strong>Parameter Sensitivity:</strong> The qualitative threshold selection process highlights the importance of domain knowledge and iterative refinement in computer vision applications.</li>
+                </ul>
+        </div>
+
+        <div class="card">
+            <h2>Part 2.1: Image "Sharpening"</h2>
+                <h3>My Unsharp Masking Process</h3>
+                <p>
+                    I implemented the unsharp masking technique to sharpen blurry images. The process involves creating a blurred version using a Gaussian filter (low-pass filter), subtracting it from the original to extract high frequencies, then adding some of those high frequencies back to enhance sharpness. I combined this into a single convolution operation called the unsharp mask filter.
+                </p>
+                <h4>How Unsharp Masking Works</h4>
+                <p>
+                    The Gaussian filter acts as a low-pass filter that retains only low frequencies (smooth areas). When we subtract the blurred version from the original image, we get the high frequencies (edges and details). Adding some of these high frequencies back to the original makes the image appear sharper by enhancing edge contrast.
+                </p>
+                <h4>Code Implementation</h4>
+                <pre><code>
+# Create unsharp mask filter
+def create_unsharp_mask_filter(kernel_size, sigma, amount):
+    """
+    Create unsharp mask filter: original + amount * (original - blurred)
+    This is equivalent to: (1 + amount) * original - amount * blurred
+    """
+    # Create Gaussian kernel
+    gaussian_1d = cv2.getGaussianKernel(kernel_size, sigma)
+    gaussian_2d = np.outer(gaussian_1d, gaussian_1d.T)
+    
+    # Unsharp mask filter: (1 + amount) * delta - amount * gaussian
+    unsharp_filter = (1 + amount) * np.eye(kernel_size) - amount * gaussian_2d
+    
+    return unsharp_filter
+
+# Apply unsharp masking
+def apply_unsharp_mask(image, kernel_size=9, sigma=1.0, amount=1.0):
+    """
+    Apply unsharp masking to sharpen an image
+    """
+    # Method 1: Two-step process
+    blurred = scipy.signal.convolve2d(image, gaussian_2d, mode='same')
+    high_freq = image - blurred
+    sharpened = image + amount * high_freq
+    
+    # Method 2: Single convolution with unsharp mask filter
+    unsharp_filter = create_unsharp_mask_filter(kernel_size, sigma, amount)
+    sharpened_single = scipy.signal.convolve2d(image, unsharp_filter, mode='same')
+    
+    return sharpened, high_freq, blurred
+                </code></pre>
+                
+                <h4>Gaussian Filter Visualization</h4>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part2_1_outputs/gaussian_filter.png" alt="Gaussian Filter" class="filter-visualization">
+                        <div class="result-title">Gaussian Filter</div>
+                        <div class="result-details">Low-pass filter used for blurring</div>
+                    </div>
+                </div>
+                
+                <h4>Taj Mahal Image Results</h4>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part2_originals/taj.jpg" alt="Original Taj Mahal">
+                        <div class="result-title">Original Taj Mahal</div>
+                        <div class="result-details">Input blurry image</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_1_outputs/taj_high_freq.png" alt="High Frequencies">
+                        <div class="result-title">High Frequencies</div>
+                        <div class="result-details">Original - Blurred (edges/details)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_1_outputs/taj_sharpened.png" alt="Sharpened Taj Mahal">
+                        <div class="result-title">Sharpened Result</div>
+                        <div class="result-details">Original + High Frequencies</div>
+                    </div>
+                </div>
+                
+                <h4>Sharpening Amount Variation</h4>
+                <p>
+                    I experimented with different sharpening amounts (alpha values) to demonstrate how varying the sharpening intensity affects the result. Higher values create more dramatic sharpening but may introduce artifacts.
+                </p>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part2_1_outputs/taj_sharpened_alpha_0.5.png" alt="Amount 0.5">
+                        <div class="result-title">Amount = 0.5</div>
+                        <div class="result-details">Subtle sharpening</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_1_outputs/taj_sharpened_alpha_1.0.png" alt="Amount 1.0">
+                        <div class="result-title">Amount = 1.0</div>
+                        <div class="result-details">Standard sharpening</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_1_outputs/taj_sharpened_alpha_2.0.png" alt="Amount 2.0">
+                        <div class="result-title">Amount = 2.0</div>
+                        <div class="result-details">Strong sharpening</div>
+                    </div>
+                </div>
+                
+                <h4>Additional Blurry Image Example</h4>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part2_originals/blurry.jpg" alt="Original Blurry Image">
+                        <div class="result-title">Original Blurry Image</div>
+                        <div class="result-details">Another blurry input for sharpening</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_1_outputs/blurry_high_freq.png" alt="Blurry High Frequencies">
+                        <div class="result-title">High Frequencies</div>
+                        <div class="result-details">Original - Blurred (edges/details)</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_1_outputs/blurry_sharpened.png" alt="Blurry Sharpened">
+                        <div class="result-title">Sharpened Result</div>
+                        <div class="result-details">Original + High Frequencies</div>
+                    </div>
+                </div>
+                
+                <h4>Evaluation: Blur and Re-sharpen</h4>
+                <p>
+                    For evaluation, I took a sharp image, applied Gaussian blur to it, then used unsharp masking to try to restore the sharpness. This demonstrates the effectiveness of the technique and shows the trade-offs between noise amplification and detail enhancement.
+                </p>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part2_originals/sharp.jpg" alt="Original Sharp Image">
+                        <div class="result-title">Original Sharp Image</div>
+                        <div class="result-details">Ground truth reference</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_1_outputs/sharp_artificially_blurred.png" alt="Artificially Blurred">
+                        <div class="result-title">Artificially Blurred</div>
+                        <div class="result-details">Simulated blur for testing</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_1_outputs/sharp_high_freq.png" alt="High Frequencies">
+                        <div class="result-title">High Frequencies</div>
+                        <div class="result-details">Extracted from blurred image</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_1_outputs/sharp_resharpened.png" alt="Re-sharpened">
+                        <div class="result-title">Re-sharpened</div>
+                        <div class="result-details">Attempted restoration</div>
+                    </div>
+                </div>
+        </div>
+
+        <div class="card">
+            <h2>Part 2.2: Hybrid Images</h2>
+                <h3>My Hybrid Image Process</h3>
+                <p>
+                    I implemented hybrid images using the approach from the SIGGRAPH 2006 paper by Oliva, Torralba, and Schyns. The concept is that high frequencies dominate perception up close, while low frequencies are visible from a distance. By blending the high-frequency portion of one image with the low-frequency portion of another, I created images that change interpretation based on viewing distance.
+                </p>
+                <h4>How Hybrid Images Work</h4>
+                <p>
+                    The process involves low-pass filtering one image (using Gaussian filter) to extract low frequencies, high-pass filtering another image (original minus Gaussian-filtered) to extract high frequencies, then combining them. The cutoff frequency for each filter requires experimentation to achieve the best perceptual effect.
+                </p>
+                <h4>Code Implementation</h4>
+                <pre><code>
+# Create hybrid image
+def create_hybrid_image(image1, image2, cutoff_freq1, cutoff_freq2):
+    """
+    Create hybrid image by combining low-freq of image1 with high-freq of image2
+    """
+    # Create Gaussian filters with different cutoff frequencies
+    gaussian1 = cv2.getGaussianKernel(2*cutoff_freq1+1, cutoff_freq1/3)
+    gaussian1_2d = np.outer(gaussian1, gaussian1.T)
+    
+    gaussian2 = cv2.getGaussianKernel(2*cutoff_freq2+1, cutoff_freq2/3)
+    gaussian2_2d = np.outer(gaussian2, gaussian2.T)
+    
+    # Low-pass filter image1 (keep low frequencies)
+    low_freq = scipy.signal.convolve2d(image1, gaussian1_2d, mode='same')
+    
+    # High-pass filter image2 (keep high frequencies)
+    blurred2 = scipy.signal.convolve2d(image2, gaussian2_2d, mode='same')
+    high_freq = image2 - blurred2
+    
+    # Combine low and high frequencies
+    hybrid = low_freq + high_freq
+    
+    return hybrid, low_freq, high_freq
+
+# Align images (important for perceptual grouping)
+def align_images(img1, img2):
+    """
+    Align two images for better hybrid results
+    """
+    # Implementation would involve feature detection and alignment
+    # For now, assuming images are pre-aligned
+    return img1, img2
+                </code></pre>
+                
+                <h4>Derek + Nutmeg Hybrid: Complete Process</h4>
+                <p>
+                    For my favorite result, I'll show the complete process including frequency analysis to illustrate how the hybrid image works.
+                </p>
+                
+                <h5>Original and Aligned Images</h5>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part2_originals/DerekPicture.jpg" alt="Original Derek">
+                        <div class="result-title">Original Derek</div>
+                        <div class="result-details">High-frequency source image</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_originals/nutmeg.jpg" alt="Original Nutmeg">
+                        <div class="result-title">Original Nutmeg</div>
+                        <div class="result-details">Low-frequency source image</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_2_outputs/3_derek_aligned.png" alt="Aligned Derek">
+                        <div class="result-title">Aligned Derek</div>
+                        <div class="result-details">After alignment for better grouping</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_2_outputs/4_nutmeg_aligned.png" alt="Aligned Nutmeg">
+                        <div class="result-title">Aligned Nutmeg</div>
+                        <div class="result-details">After alignment for better grouping</div>
+                    </div>
+                </div>
+                
+                <h5>Fourier Transform Analysis</h5>
+                <p>
+                    The Fourier transforms show the frequency content of each image, helping visualize how the filtering affects different frequency components.
+                </p>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part2_2_outputs/5_derek_fft.png" alt="Derek Fourier Transform">
+                        <div class="result-title">Derek Fourier Transform</div>
+                        <div class="result-details">Log magnitude of frequency spectrum</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_2_outputs/6_nutmeg_fft.png" alt="Nutmeg Fourier Transform">
+                        <div class="result-title">Nutmeg Fourier Transform</div>
+                        <div class="result-details">Log magnitude of frequency spectrum</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_2_outputs/12_hybrid_final_fft.png" alt="Hybrid Fourier Transform">
+                        <div class="result-title">Hybrid Fourier Transform</div>
+                        <div class="result-details">Combined frequency spectrum</div>
+                    </div>
+                </div>
+                
+                <h5>Filtered Results and Cutoff Frequency Choice</h5>
+                <p>
+                    I experimented with different cutoff frequencies to find the optimal balance. The low-frequency component should be smooth enough to be visible from a distance, while the high-frequency component should contain enough detail to dominate up close.
+                </p>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part2_2_outputs/8_derek_low_freq.png" alt="Derek Low Frequencies">
+                        <div class="result-title">Derek Low Frequencies</div>
+                        <div class="result-details">Low-pass filtered Derek</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_2_outputs/7_nutmeg_high_freq.png" alt="Nutmeg High Frequencies">
+                        <div class="result-title">Nutmeg High Frequencies</div>
+                        <div class="result-details">High-pass filtered Nutmeg</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_2_outputs/9_nutmeg_high_freq_fft.png" alt="Nutmeg High Freq FFT">
+                        <div class="result-title">Nutmeg High Freq FFT</div>
+                        <div class="result-details">Frequency spectrum of high-pass filtered</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_2_outputs/10_derek_low_freq_fft.png" alt="Derek Low Freq FFT">
+                        <div class="result-title">Derek Low Freq FFT</div>
+                        <div class="result-details">Frequency spectrum of low-pass filtered</div>
+                    </div>
+                </div>
+                
+                <h5>Final Hybrid Image</h5>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part2_2_outputs/11_hybrid_final.png" alt="Derek + Nutmeg Hybrid">
+                        <div class="result-title">Derek + Nutmeg Hybrid</div>
+                        <div class="result-details">View close: see Derek | View far: see Nutmeg</div>
+                    </div>
+                </div>
+                
+                <h4>Additional Hybrid Images</h4>
+                <p>
+                    I created two additional hybrid images to demonstrate different types of transformations: morphing between different objects.
+                </p>
+                
+                <h5>Dog Hybrid</h5>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part2_originals/DogHybrid1.jpg" alt="Dog Hybrid Image 1" class="grayscale">
+                        <div class="result-title">Dog Hybrid Image 1</div>
+                        <div class="result-details">First source image</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_originals/DogHybrid2.jpg" alt="Dog Hybrid Image 2" class="grayscale">
+                        <div class="result-title">Dog Hybrid Image 2</div>
+                        <div class="result-details">Second source image</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_2_outputs/dog_hybrid_final.png" alt="Dog Hybrid Result">
+                        <div class="result-title">Dog Hybrid Result</div>
+                        <div class="result-details">Morphing between different objects</div>
+                    </div>
+                </div>
+                
+                <h5>Cat Hybrid</h5>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part2_originals/TigerHybrid1.jpg" alt="Cat Hybrid Image 1" class="grayscale">
+                        <div class="result-title">Cat Hybrid Image 1</div>
+                        <div class="result-details">First source image</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_originals/TigerHybrid2.jpg" alt="Cat Hybrid Image 2" class="grayscale">
+                        <div class="result-title">Cat Hybrid Image 2</div>
+                        <div class="result-details">Second source image</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_2_outputs/custom_hybrid1_final.png" alt="Cat Hybrid Result">
+                        <div class="result-title">Cat Hybrid Result</div>
+                        <div class="result-details">Morphing between different objects</div>
+                    </div>
+                </div>
+        </div>
+
+        <div class="card">
+            <h2>Part 2.3: Gaussian and Laplacian Stacks</h2>
+                <h3>My Stack Implementation Process</h3>
+                <p>
+                    I implemented Gaussian and Laplacian stacks from scratch, which are similar to pyramids but without downsampling. This means each level maintains the same dimensions as the original image, allowing us to store all levels in a 3D matrix. The key difference from pyramids is that we apply Gaussian filtering at each level without reducing the image size.
+                </p>
+                <h4>Understanding Stacks vs Pyramids</h4>
+                <p>
+                    In a traditional pyramid, each level is downsampled to half the size, creating a pyramid structure. In a stack, we maintain the original dimensions throughout all levels, just applying increasing amounts of Gaussian blur. This approach behaves similarly to a downsampled pyramid but preserves spatial relationships and makes blending operations more straightforward.
+                </p>
+                <h4>Implementation Approach</h4>
+                <p>
+                    I created successive levels by applying Gaussian filters with increasing sigma values, building up the blur progressively. For the Laplacian stack, I computed the difference between consecutive Gaussian levels, which captures the detail information at each scale. This creates a multi-resolution representation where each level contains information at a different frequency band.
+                </p>
+                <p>
+                    The implementation focuses on building the multi-resolution representation that will be essential for the blending operations in Part 2.4. Each level of the Gaussian stack represents the image at a different scale, while the Laplacian stack captures the detail information that would be lost at each scale.
+                </p>
+        </div>
+
+        <div class="card">
+            <h2>Part 2.4: Multiresolution Blending (The Oraple!)</h2>
+                <h3>My Multiresolution Blending Process</h3>
+                <p>
+                    Building on the Gaussian and Laplacian stacks from Part 2.3, I implemented multiresolution blending following the Burt and Adelson 1983 paper. The key insight is that blending should occur at multiple scales simultaneously, using Gaussian-blurred masks to create smooth transitions between images.
+                </p>
+                <h4>Understanding the Algorithm</h4>
+                <p>
+                    Unlike simple linear blending which creates visible seams, multiresolution blending works by blending the Laplacian pyramids of both images using a Gaussian-blurred mask. This ensures that transitions occur smoothly at all frequency levels, from fine details to coarse structures. The mask itself needs to be processed through a Gaussian stack to match the multi-scale nature of the blending.
+                </p>
+                <h4>Implementation Strategy</h4>
+                <p>
+                    I started with simple vertical and horizontal seams using step function masks, then progressed to irregular masks for more complex blending. The algorithm requires creating Gaussian stacks for both input images and the mask, then blending the corresponding Laplacian levels using the blurred mask values.
+                </p>
+                
+                <h4>Orange + Apple Results (Recreating Figure 3.42)</h4>
+                <p>
+                    I applied the Gaussian and Laplacian stacks to the classic orange and apple images, recreating the results from Szelski's textbook. This demonstrates the multi-scale decomposition and reconstruction process.
+                </p>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part2_4_outputs/01_apple_original.png" alt="Original Apple">
+                        <div class="result-title">Original Apple</div>
+                        <div class="result-details">Input image for stack analysis</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_4_outputs/02_orange_original.png" alt="Original Orange">
+                        <div class="result-title">Original Orange</div>
+                        <div class="result-details">Input image for stack analysis</div>
+                    </div>
+                </div>
+                
+                <h5>Gaussian Stack Levels</h5>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part2_4_outputs/apple_gaussian_level_0.png" alt="Apple Gaussian Level 0">
+                        <div class="result-title">Level 0</div>
+                        <div class="result-details">Original apple image</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_4_outputs/apple_gaussian_level_1.png" alt="Apple Gaussian Level 1">
+                        <div class="result-title">Level 1</div>
+                        <div class="result-details">First Gaussian blur</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_4_outputs/apple_gaussian_level_2.png" alt="Apple Gaussian Level 2">
+                        <div class="result-title">Level 2</div>
+                        <div class="result-details">Second Gaussian blur</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_4_outputs/apple_gaussian_level_3.png" alt="Apple Gaussian Level 3">
+                        <div class="result-title">Level 3</div>
+                        <div class="result-details">Third Gaussian blur</div>
+                    </div>
+                </div>
+                
+                <h5>Laplacian Stack Levels</h5>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part2_4_outputs/apple_laplacian_level_0.png" alt="Apple Laplacian Level 0">
+                        <div class="result-title">Level 0</div>
+                        <div class="result-details">Fine details</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_4_outputs/apple_laplacian_level_1.png" alt="Apple Laplacian Level 1">
+                        <div class="result-title">Level 1</div>
+                        <div class="result-details">Medium details</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_4_outputs/apple_laplacian_level_2.png" alt="Apple Laplacian Level 2">
+                        <div class="result-title">Level 2</div>
+                        <div class="result-details">Coarse details</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_4_outputs/apple_laplacian_level_3.png" alt="Apple Laplacian Level 3">
+                        <div class="result-title">Level 3</div>
+                        <div class="result-details">Lowest frequency</div>
+                    </div>
+                </div>
+                
+                <h4>Figure 3.42 Recreation</h4>
+                <p>
+                    I recreated the classic Figure 3.42 from the Burt and Adelson paper, showing the complete multiresolution blending process with labeled components (a) through (l).
+                </p>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part2_4_outputs/figure_3_42_recreation.png" alt="Figure 3.42 Recreation">
+                        <div class="result-title">Figure 3.42 Recreation</div>
+                        <div class="result-details">Complete multiresolution blending process</div>
+                    </div>
+                </div>
+                
+                <h4>Simple Vertical Seam Blending</h4>
+                <p>
+                    I started with the classic "oraple" - blending an orange and apple with a vertical seam. This demonstrates the basic multiresolution blending technique with a step function mask.
+                </p>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part2_4_outputs/03_step_mask_original.png" alt="Blending Mask">
+                        <div class="result-title">Blending Mask</div>
+                        <div class="result-details">Step function for vertical seam</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_4_outputs/04_oraple_final.png" alt="Blended Oraple">
+                        <div class="result-title">The Oraple</div>
+                        <div class="result-details">Half orange, half apple</div>
+                    </div>
+                </div>
+                
+                <h4>Custom Blended Images</h4>
+                <p>
+                    I created two additional blended images using my own photos, including one with an irregular mask to demonstrate more complex blending scenarios.
+                </p>
+                
+                <h5>Custom Blend 1: Horizontal Mask</h5>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part2_4_horizontal_blend_outputs/horizontal_blend_img1_original.png" alt="Horizontal Image 1">
+                        <div class="result-title">Source Image 1</div>
+                        <div class="result-details">First input image</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_4_horizontal_blend_outputs/horizontal_blend_img2_original.png" alt="Horizontal Image 2">
+                        <div class="result-title">Source Image 2</div>
+                        <div class="result-details">Second input image</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_4_horizontal_blend_outputs/horizontal_blend_mask.png" alt="Horizontal Mask">
+                        <div class="result-title">Horizontal Mask</div>
+                        <div class="result-details">Top/bottom split mask</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_4_horizontal_blend_outputs/horizontal_blend_result.png" alt="Horizontal Blend Result">
+                        <div class="result-title">Blended Result</div>
+                        <div class="result-details">Multiresolution blend</div>
+                    </div>
+                </div>
+                
+                <h5>Custom Blend 2: Irregular Circular Mask</h5>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part2_4_circular_blend_outputs/circular_blend_img1_original.png" alt="Circular Image 1">
+                        <div class="result-title">Source Image 1</div>
+                        <div class="result-details">First input image</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_4_circular_blend_outputs/circular_blend_img2_original.png" alt="Circular Image 2">
+                        <div class="result-title">Source Image 2</div>
+                        <div class="result-details">Second input image</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_4_circular_blend_outputs/circular_blend_mask.png" alt="Circular Mask">
+                        <div class="result-title">Circular Mask</div>
+                        <div class="result-details">Irregular circular mask</div>
+                    </div>
+                    <div class="result-card">
+                        <img src="part2_4_circular_blend_outputs/circular_blend_result.png" alt="Circular Blend Result">
+                        <div class="result-title">Blended Result</div>
+                        <div class="result-details">Complex multiresolution blend</div>
+                    </div>
+                </div>
+        </div>
+    </div>
+
+    <a href="../index.html" class="button">Back to Home</a>
+</body>
+</html>

@@ -156,3 +156,17 @@ a.button:hover {
 	align-items: start;
 	margin: 24px 0;
 }
+
+.filter-visualization {
+	max-width: 200px;
+	width: 200px;
+	height: 200px;
+	object-fit: contain;
+	image-rendering: pixelated;
+	image-rendering: -moz-crisp-edges;
+	image-rendering: crisp-edges;
+}
+
+.grayscale {
+	filter: grayscale(100%);
+}
