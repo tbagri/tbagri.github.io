@@ -523,6 +523,18 @@ def convolution_2loops(image, kernel):
                 <p>
                     The implementation focuses on building the multi-resolution representation that will be essential for the blending operations in Part 2.4. Each level of the Gaussian stack represents the image at a different scale, while the Laplacian stack captures the detail information that would be lost at each scale.
                 </p>
+                
+                <h4>Figure 3.42 Recreation</h4>
+                <p>
+                    I recreated the classic Figure 3.42 from the Burt and Adelson paper, showing the complete multiresolution blending process with labeled components (a) through (l). This demonstrates how the Gaussian and Laplacian stacks work together in the blending process.
+                </p>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <img src="part2_4_outputs/figure_3_42_recreation.png" alt="Figure 3.42 Recreation">
+                        <div class="result-title">Figure 3.42 Recreation</div>
+                        <div class="result-details">Complete multiresolution blending process</div>
+                    </div>
+                </div>
         </div>
 
         <div class="card">
@@ -602,18 +614,6 @@ def convolution_2loops(image, kernel):
                         <img src="part2_4_outputs/apple_laplacian_level_3.png" alt="Apple Laplacian Level 3">
                         <div class="result-title">Level 3</div>
                         <div class="result-details">Lowest frequency</div>
-                    </div>
-                </div>
-                
-                <h4>Figure 3.42 Recreation</h4>
-                <p>
-                    I recreated the classic Figure 3.42 from the Burt and Adelson paper, showing the complete multiresolution blending process with labeled components (a) through (l).
-                </p>
-                <div class="results-grid">
-                    <div class="result-card">
-                        <img src="part2_4_outputs/figure_3_42_recreation.png" alt="Figure 3.42 Recreation">
-                        <div class="result-title">Figure 3.42 Recreation</div>
-                        <div class="result-details">Complete multiresolution blending process</div>
                     </div>
                 </div>
                 
