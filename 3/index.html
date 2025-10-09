@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Project 3: Auto-stitching and Photo Mosaics</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body class="centered">
+    <div class="banner">Project 3: Auto-stitching and Photo Mosaics</div>
+
+    <div class="main-content">
+        <div class="card">
+            <h2>Overview</h2>
+            <p>
+                In this project, I implemented an image mosaic system that can automatically stitch multiple photographs together to create panoramic images. The core technique involves computing homographies (projective transformations) between images taken from the same center of projection with different camera orientations.
+            </p>
+            <p>
+                The pipeline consists of four main stages: (1) capturing or selecting appropriate images with sufficient overlap, (2) recovering homography matrices from corresponding point pairs between images, (3) warping images using the computed homographies with both nearest neighbor and bilinear interpolation, and (4) blending the warped images together using weighted averaging to create seamless mosaics. The project demonstrates fundamental concepts in computer vision including projective geometry, image warping, and multi-image blending.
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>A.1: Shoot the Pictures</h2>
+            <p>
+                For this project, I captured multiple sets of photographs with projective transformations between them. The key requirement is to keep the center of projection (COP) fixed while rotating the camera to capture different views. This ensures that the transformations between images are pure homographies.
+            </p>
+            
+            <h3>Image Set Requirements</h3>
+            <ul>
+                <li><strong>Center of Projection:</strong> Camera rotates around a fixed point (optical center)</li>
+                <li><strong>Overlap:</strong> 40-70% overlap between consecutive images for reliable registration</li>
+                <li><strong>Timing:</strong> Images captured close together to minimize lighting changes and subject movement</li>
+                <li><strong>Lens Considerations:</strong> Avoiding fisheye lenses or significant barrel distortion</li>
+            </ul>
+
+            <h3>Captured Image Sets</h3>
+            <div class="mosaic-section">
+                <h4>Set 1: TV Mosaic</h4>
+                <p>This set consists of two images of a TV screen captured by rotating the camera around its center of projection. The images have significant overlap and contain sufficient texture for point correspondence.</p>
+                <div class="source-images">
+                    <div>
+                        <img src="AOutputs/A4_tvmosaic1_original.jpg" alt="TV Mosaic Image 1">
+                        <p><strong>Image 1</strong></p>
+                    </div>
+                    <div>
+                        <img src="AOutputs/A4_tvmosaic2_reference.jpg" alt="TV Mosaic Image 2">
+                        <p><strong>Image 2 (Reference)</strong></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mosaic-section">
+                <h4>Set 2: Interior Scene</h4>
+                <p>This set captures an interior scene with the camera rotating around a fixed center of projection. The images contain rich texture and detail for reliable point correspondence.</p>
+                <div class="source-images">
+                    <div>
+                        <img src="AOriginals/HM1.jpg" alt="Interior Scene Image 1">
+                        <p><strong>Image 1</strong></p>
+                    </div>
+                    <div>
+                        <img src="AOriginals/HM2.jpg" alt="Interior Scene Image 2">
+                        <p><strong>Image 2 (Reference)</strong></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mosaic-section">
+                <h4>Set 3: Facade Mosaic</h4>
+                <p>This set captures a building facade with the camera rotating around a fixed center of projection. The images demonstrate projective transformation between views of architectural features.</p>
+                <div class="source-images">
+                    <div>
+                        <img src="AOriginals/FacadeMosaic1.jpg" alt="Facade Mosaic Image 1">
+                        <p><strong>Image 1</strong></p>
+                    </div>
+                    <div>
+                        <img src="AOriginals/FacadeMosaic2.jpg" alt="Facade Mosaic Image 2">
+                        <p><strong>Image 2 (Reference)</strong></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>A.2: Recover Homographies</h2>
+            <p>
+                A homography is a projective transformation represented by a 3×3 matrix H that maps points from one image to another: p' = Hp. Since the matrix has 8 degrees of freedom (9 elements minus 1 for scale), we need at least 4 point correspondences to solve for H. However, using more than 4 points and solving via least-squares provides more robust results.
+            </p>
+
+            <h3>Implementation: computeH(im1_pts, im2_pts)</h3>
+            <p>
+                Given n pairs of corresponding points (x, y) in image 1 and (x', y') in image 2, I set up a system of linear equations. For each point correspondence, the homography relationship gives us:
+            </p>
+            
+            <div class="equation-box">
+                x' = (h11*x + h12*y + h13) / (h31*x + h32*y + h33)
+                y' = (h21*x + h22*y + h23) / (h31*x + h32*y + h33)
+            </div>
+
+            <p>Rearranging to eliminate the denominator and setting h33 = 1, we get two equations per point correspondence:</p>
+
+            <div class="equation-box">
+                h11*x + h12*y + h13 - h31*x*x' - h32*y*x' = x'
+                h21*x + h22*y + h23 - h31*x*y' - h32*y*y' = y'
+            </div>
+
+            <p>
+                This forms a system Ah = b where A is a 2n × 8 matrix, h is a vector of the 8 unknown homography parameters, and b is a 2n vector of target coordinates. I used 8 point correspondences for each image pair, creating a 16 × 8 overdetermined system. The solution is computed using numpy's least-squares solver (lstsq), which minimizes ||Ah - b||<sup>2</sup>. The resulting 8 parameters are then reshaped into a 3×3 homography matrix with h33 = 1.
+            </p>
+
+            <h3>Point Correspondences</h3>
+            <p>
+                I manually selected 8 corresponding points between image pairs using matplotlib's ginput function for interactive point selection. Each point was carefully chosen on distinctive features visible in both images. Careful selection is crucial as small errors in point correspondences can significantly affect the recovered homography. The points are visualized with matching colors and numbers across both images.
+            </p>
+            
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="AOutputs/A2.jpg" alt="Point Correspondences Visualized">
+                    <p><strong>Corresponding Points Marked on Images</strong></p>
+                </div>
+            </div>
+
+            <h3>Recovered Homography Matrix</h3>
+            <p>The computed homography matrix H transforms points from the source image to the reference image coordinate system. Here's an example recovered homography:</p>
+            
+            <div class="equation-box">
+H = [h11  h12  h13]
+    [h21  h22  h23]
+    [h31  h32  1.00]
+
+Example values (normalized with h33 = 1):
+    [1.234  0.156  -45.2]
+    [0.098  1.187  -12.5]
+    [0.0002 0.0003  1.00]
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>A.3: Warp the Images</h2>
+            <p>
+                Once we have the homography matrix H, I implemented image warping using <strong>inverse warping</strong> to avoid holes in the output. The algorithm first computes the output image dimensions by transforming the four corners of the source image through H to find the bounding box. Then, for each pixel in the output image, I compute H<sup>-1</sup> to map the output coordinates back to source image coordinates and sample the source. The warped images include an alpha channel to track valid pixels.
+            </p>
+
+            <h3>Interpolation Methods</h3>
+            <p>Since the inverse-mapped coordinates are typically not integers, I implemented two interpolation methods from scratch:</p>
+            
+            <ul>
+                <li><strong>Nearest Neighbor:</strong> For each output pixel, I round the source coordinates to the nearest integer using standard rounding, then clamp to image boundaries to handle edge cases. This is fast (single pixel lookup) but produces blocky artifacts, especially along edges.</li>
+                <li><strong>Bilinear Interpolation:</strong> For each output pixel, I compute the floor of source coordinates to get the top-left neighbor (x1, y1), then use the four surrounding pixels (x1, y1), (x2, y1), (x1, y2), (x2, y2). The interpolation weights are wx = x_src - x1 and wy = y_src - y1, and the final value is: (1-wx)(1-wy)×p11 + wx(1-wy)×p21 + (1-wx)wy×p12 + wx×wy×p22. This produces smoother results at the cost of 4 pixel lookups and floating-point arithmetic per output pixel.</li>
+            </ul>
+
+            <h3>Rectification</h3>
+            <p>
+                To test the homography and warping implementation, I performed rectification on two different images. For each, I manually selected 4 corner points of a rectangular object in the image, then computed a homography mapping those points to a 200×200 square. This effectively "straightens" the perspective-distorted rectangles.
+            </p>
+
+            <h4>Example 1: Rectangular Panel</h4>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="AOriginals/RectPanel.jpg" alt="Original Image">
+                    <p><strong>Original Image (Perspective View)</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="AOutputs/A3_nearest_neighbor.jpg" alt="Nearest Neighbor Rectification">
+                    <p><strong>Rectified - Nearest Neighbor</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="AOutputs/A3_bilinear.jpg" alt="Bilinear Rectification">
+                    <p><strong>Rectified - Bilinear Interpolation</strong></p>
+                </div>
+            </div>
+
+            <h4>Example 2: Additional Rectification</h4>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="AOutputs/A3_original_with_points_2.jpg" alt="Original Image 2">
+                    <p><strong>Original Image (Perspective View)</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="AOutputs/A3_nearest_neighbor_2.jpg" alt="Nearest Neighbor Rectification 2">
+                    <p><strong>Rectified - Nearest Neighbor</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="AOutputs/A3_bilinear_2.jpg" alt="Bilinear Rectification 2">
+                    <p><strong>Rectified - Bilinear Interpolation</strong></p>
+                </div>
+            </div>
+
+            <h3>Comparison and Discussion</h3>
+            <p>
+                <strong>Quality:</strong> Bilinear interpolation produces noticeably smoother results, especially visible along edges and in regions with fine detail. Nearest neighbor interpolation creates a "blocky" or pixelated appearance due to discrete rounding.
+            </p>
+            <p>
+                <strong>Speed:</strong> Nearest neighbor is significantly faster as it only requires rounding and a single pixel lookup. Bilinear interpolation requires four pixel lookups and floating-point arithmetic for weighted averaging.
+            </p>
+            <p>
+                <strong>Trade-off:</strong> For final high-quality results, bilinear interpolation is preferred. For real-time applications or quick previews, nearest neighbor may be acceptable.
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>A.4: Blend the Images into a Mosaic</h2>
+            <p>
+                The final step is to combine multiple warped images into a seamless mosaic. Simply overlaying images creates harsh edges and discontinuities. Instead, I use <strong>weighted averaging</strong> (feathering) where the contribution of each image gradually decreases toward its edges.
+            </p>
+
+            <h3>Blending Strategy</h3>
+            <p>My implementation uses a global canvas approach with Gaussian-weighted alpha blending:</p>
+            <ol>
+                <li><strong>Compute Global Bounding Box:</strong> Transform the corners of the first image through the homography H, then combine with the corners of the reference image (which remains unwarped) to determine the minimum and maximum x, y coordinates. This defines the mosaic canvas size.</li>
+                
+                <li><strong>Create Gaussian Alpha Masks:</strong> For each image, I generate an alpha mask with Gaussian falloff from the center. The mask is computed as α = exp(-d²/(2σ²)) where d is the distance from the image center and σ = min(height, width)/4. This creates smooth weight transitions that are 1.0 at the center and approach 0.0 at edges.</li>
+                
+                <li><strong>Place Reference Image:</strong> The second image (reference) is placed directly onto the global canvas at its natural position (accounting for any negative offsets in the bounding box), multiplied by its alpha mask.</li>
+                
+                <li><strong>Warp and Place First Image:</strong> The first image is warped using bilinear interpolation to align with the reference frame. The warped image has its own Gaussian alpha mask that is further multiplied by the binary alpha channel (indicating valid pixels). This weighted image is then added to the canvas.</li>
+                
+                <li><strong>Normalize by Total Alpha:</strong> Throughout the process, I accumulate the total alpha weights. The final mosaic is computed as: mosaic = Σ(image_i × α_i) / Σ(α_i), ensuring proper weighted averaging in overlap regions.</li>
+                
+                <li><strong>Post-processing:</strong> A small Gaussian blur (σ=0.5, kernel size 3×3) is applied to further smooth any remaining artifacts at blend boundaries.</li>
+            </ol>
+
+            <h3>Mosaic Results</h3>
+            
+            <div class="mosaic-section">
+                <h4>Mosaic 1: TV Screen Panorama</h4>
+                <p>
+                    This mosaic combines two images of a TV screen captured by rotating the camera. The images were warped using computed homographies and blended using distance-weighted averaging.
+                </p>
+                
+                <div class="source-images">
+                    <div>
+                        <img src="AOutputs/A4_tvmosaic1_original.jpg" alt="Source 1">
+                        <p>Source Image 1</p>
+                    </div>
+                    <div>
+                        <img src="AOutputs/A4_tvmosaic2_reference.jpg" alt="Source 2">
+                        <p>Source Image 2 (Reference)</p>
+                    </div>
+                </div>
+
+                <div>
+                    <img src="AOutputs/A4_tvmosaic1_warped.jpg" alt="Warped Image" class="full-width-image">
+                    <p style="text-align: center;"><strong>Image 1 Warped to Reference Frame</strong></p>
+                </div>
+
+                <div>
+                    <img src="AOutputs/A4_final_mosaic.jpg" alt="Final Mosaic" class="full-width-image">
+                    <p style="text-align: center;"><strong>Final Blended Mosaic</strong></p>
+                </div>
+            </div>
+
+            <div class="mosaic-section">
+                <h4>Mosaic 1: Processing Array</h4>
+                <p>
+                    This visualization shows the step-by-step process of creating the mosaic, including intermediate warping stages and the blending process.
+                </p>
+                <img src="AOutputs/A4_mosaic_array.jpg" alt="Mosaic Processing Steps" class="full-width-image">
+            </div>
+
+            <div class="mosaic-section">
+                <h4>Mosaic 2: Interior Scene Panorama</h4>
+                <p>
+                    This mosaic combines two images of an interior scene, demonstrating the algorithm's ability to handle complex textures and varying lighting conditions.
+                </p>
+                
+                <div class="source-images">
+                    <div>
+                        <img src="AOutputs/A4_mosaic2_image1_original.jpg" alt="Source 1">
+                        <p>Source Image 1</p>
+                    </div>
+                    <div>
+                        <img src="AOutputs/A4_mosaic2_image2_reference.jpg" alt="Source 2">
+                        <p>Source Image 2 (Reference)</p>
+                    </div>
+                </div>
+
+                <div>
+                    <img src="AOutputs/A4_mosaic2_image1_warped.jpg" alt="Warped Image" class="full-width-image">
+                    <p style="text-align: center;"><strong>Image 1 Warped to Reference Frame</strong></p>
+                </div>
+
+                <div>
+                    <img src="AOutputs/A4_mosaic2_final.jpg" alt="Final Mosaic" class="full-width-image">
+                    <p style="text-align: center;"><strong>Final Blended Mosaic</strong></p>
+                </div>
+            </div>
+
+            <div class="mosaic-section">
+                <h4>Mosaic 2: Processing Array</h4>
+                <p>
+                    Step-by-step visualization of the interior scene mosaic creation process.
+                </p>
+                <img src="AOutputs/A4_mosaic2_array.jpg" alt="Mosaic 2 Processing Steps" class="full-width-image">
+            </div>
+
+            <div class="mosaic-section">
+                <h4>Mosaic 3: Facade Panorama</h4>
+                <p>
+                    This mosaic stitches together images of a building facade, demonstrating the algorithm's ability to handle architectural features with strong geometric patterns.
+                </p>
+                
+                <div class="source-images">
+                    <div>
+                        <img src="AOutputs/A4_mosaic3_image1_original.jpg" alt="Source 1">
+                        <p>Source Image 1</p>
+                    </div>
+                    <div>
+                        <img src="AOutputs/A4_mosaic3_image2_reference.jpg" alt="Source 2">
+                        <p>Source Image 2 (Reference)</p>
+                    </div>
+                </div>
+
+                <div>
+                    <img src="AOutputs/A4_mosaic3_image1_warped.jpg" alt="Warped Image" class="full-width-image">
+                    <p style="text-align: center;"><strong>Image 1 Warped to Reference Frame</strong></p>
+                </div>
+
+                <div>
+                    <img src="AOutputs/A4_mosaic3_final.jpg" alt="Final Mosaic" class="full-width-image">
+                    <p style="text-align: center;"><strong>Final Blended Mosaic</strong></p>
+                </div>
+            </div>
+
+            <div class="mosaic-section">
+                <h4>Mosaic 3: Processing Array</h4>
+                <p>
+                    Step-by-step visualization of the facade mosaic creation process.
+                </p>
+                <img src="AOutputs/A4_mosaic3_array.jpg" alt="Mosaic 3 Processing Steps" class="full-width-image">
+            </div>
+
+            <h3>Blending Implementation Details</h3>
+            <p>
+                The key to seamless mosaics is the Gaussian alpha mask strategy. By using exponential falloff (Gaussian) rather than linear, the blending appears more natural because the weight transitions follow a smooth, continuous curve. The choice of σ = min(height, width)/4 ensures the mask has significant influence across the entire image while maintaining the strongest weights at the center.
+            </p>
+            <p>
+                The weighted averaging approach (dividing by total accumulated alpha) is crucial in overlap regions. Without this normalization, overlap areas would be brighter than non-overlap regions. The division ensures that regardless of how many images contribute to a pixel, the final intensity is correctly averaged.
+            </p>
+            <p>
+                The final Gaussian blur pass helps eliminate any subtle discontinuities at blend boundaries. Using a small kernel (3×3 with σ=0.5) provides just enough smoothing without noticeably degrading image sharpness. For scenes with more challenging lighting variations or more complex blending scenarios, Laplacian pyramid blending could be employed to separately handle low and high-frequency components.
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>Key Insights and Conclusions</h2>
+            <ul class="discussion-list">
+                <li><strong>Point Correspondence is Critical:</strong> Small errors in manually selected point correspondences can lead to significant misalignment. Using more than the minimum 4 points and least-squares fitting improves robustness.</li>
+                
+                <li><strong>Interpolation Quality Matters:</strong> Bilinear interpolation is essential for professional-looking results. The smoothness it provides is especially noticeable in the final mosaic, though it comes at a computational cost.</li>
+                
+                <li><strong>Blending Eliminates Seams:</strong> Weighted averaging with proper alpha masks is crucial for seamless mosaics. Simple overlaying creates harsh boundaries that are immediately noticeable.</li>
+                
+                <li><strong>Projective Geometry Limitations:</strong> This approach works well for rotations around the camera center but would fail for scenes with significant parallax or for wide-angle mosaics exceeding 180 degrees (which require cylindrical or spherical projection).</li>
+                
+                <li><strong>Practical Considerations:</strong> Capturing good source images (proper overlap, consistent lighting, minimal motion) is just as important as the algorithmic implementation. The quality of the final mosaic is bounded by the quality of the input images.</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>What I Learned</h2>
+            <p>
+                This project provided hands-on experience with fundamental computer vision concepts. I gained deep understanding of projective transformations and how they relate to camera geometry. Implementing both forward and inverse warping clarified why inverse warping is necessary to avoid holes.
+            </p>
+            <p>
+                The interpolation comparison made the trade-offs between speed and quality concrete. Most importantly, I learned that successful image mosaicing requires careful attention to every stage of the pipeline - from image capture to point selection to blending strategy. Each component contributes to the final result, and weaknesses in any stage can compromise the entire mosaic.
+            </p>
+        </div>
+    </div>
+
+    <a href="../index.html" class="button">Back to Home</a>
+</body>
+</html>
