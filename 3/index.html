@@ -11,10 +11,10 @@
         <div class="card">
             <h2>Overview</h2>
             <p>
-                In this project, I implemented an image mosaic system that can automatically stitch multiple photographs together to create panoramic images. The core technique involves computing homographies (projective transformations) between images taken from the same center of projection with different camera orientations.
+                <strong>Part A</strong> implements the fundamental mosaic pipeline using manually selected point correspondences. I compute homography transformations between image pairs, warp images using inverse warping with nearest neighbor and bilinear interpolation, and blend them together using Gaussian-weighted alpha masks for seamless transitions.
             </p>
             <p>
-                The pipeline consists of four main stages: (1) capturing or selecting appropriate images with sufficient overlap, (2) recovering homography matrices from corresponding point pairs between images, (3) warping images using the computed homographies with both nearest neighbor and bilinear interpolation, and (4) blending the warped images together using weighted averaging to create seamless mosaics. The project demonstrates fundamental concepts in computer vision including projective geometry, image warping, and multi-image blending.
+                <strong>Part B</strong> builds on Part A by automating the entire pipeline. Using Harris corner detection, Adaptive Non-Maximal Suppression, and feature descriptors, I automatically identify and match corresponding points between images. RANSAC is then used to robustly estimate homographies despite outliers, producing results comparable to manual methods without requiring user intervention.
             </p>
         </div>
 
@@ -341,30 +341,143 @@ Example values (normalized with h33 = 1):
         </div>
 
         <div class="card">
-            <h2>Key Insights and Conclusions</h2>
-            <ul class="discussion-list">
-                <li><strong>Point Correspondence is Critical:</strong> Small errors in manually selected point correspondences can lead to significant misalignment. Using more than the minimum 4 points and least-squares fitting improves robustness.</li>
-                
-                <li><strong>Interpolation Quality Matters:</strong> Bilinear interpolation is essential for professional-looking results. The smoothness it provides is especially noticeable in the final mosaic, though it comes at a computational cost.</li>
-                
-                <li><strong>Blending Eliminates Seams:</strong> Weighted averaging with proper alpha masks is crucial for seamless mosaics. Simple overlaying creates harsh boundaries that are immediately noticeable.</li>
-                
-                <li><strong>Projective Geometry Limitations:</strong> This approach works well for rotations around the camera center but would fail for scenes with significant parallax or for wide-angle mosaics exceeding 180 degrees (which require cylindrical or spherical projection).</li>
-                
-                <li><strong>Practical Considerations:</strong> Capturing good source images (proper overlap, consistent lighting, minimal motion) is just as important as the algorithmic implementation. The quality of the final mosaic is bounded by the quality of the input images.</li>
-            </ul>
+            <h2>B.1: Harris Corner Detection & Adaptive Non-Maximal Suppression</h2>
+            <p>
+                I implemented Harris corner detection at a single scale with an edge discard threshold of 20 pixels. The raw Harris detector identifies hundreds of interest points, but many cluster in high-texture regions.
+            </p>
+
+            <h3>Harris Corner Detection Results</h3>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="BOutputs/B1_1_harris_all.jpg" alt="Harris corners detected">
+                    <p><strong>Example 1: All Harris Corners</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="BOutputs/B1_2_harris_all.jpg" alt="Harris corners detected">
+                    <p><strong>Example 2: All Harris Corners</strong></p>
+                </div>
+            </div>
+
+            <h3>Adaptive Non-Maximal Suppression</h3>
+            <p>
+                I applied ANMS to select a spatially distributed subset of 500 corners. Each corner's suppression radius is computed as the minimum distance to any stronger corner (score > 0.9 × the current corner's score). Selecting the 500 corners with the largest suppression radii produces a well-distributed set suitable for homography estimation.
+            </p>
+
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="BOutputs/B1_1_harris_anms.jpg" alt="ANMS corners selected">
+                    <p><strong>Example 1: ANMS (n=500)</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="BOutputs/B1_2_harris_anms.jpg" alt="ANMS corners selected">
+                    <p><strong>Example 2: ANMS (n=500)</strong></p>
+                </div>
+            </div>
         </div>
 
         <div class="card">
-            <h2>What I Learned</h2>
+            <h2>B.2: Feature Descriptor Extraction</h2>
             <p>
-                This project provided hands-on experience with fundamental computer vision concepts. I gained deep understanding of projective transformations and how they relate to camera geometry. Implementing both forward and inverse warping clarified why inverse warping is necessary to avoid holes.
+                For each corner selected by ANMS, I extracted feature descriptors by sampling an 8×8 grid at 5-pixel spacing within a 40×40 window (after Gaussian blur, σ=1.0), then applying bias/gain normalization (subtract mean, divide by standard deviation). This produces 64-dimensional descriptors invariant to affine intensity changes.
+            </p>
+
+            <h3>Extracted Descriptors</h3>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="BOutputs/B2_1_descriptor_context.jpg" alt="40x40 context windows">
+                    <p><strong>Example 1: 40×40 Sampling Windows</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="BOutputs/B2_1_descriptor_patches.jpg" alt="8x8 feature descriptors">
+                    <p><strong>Example 1: 8×8 Normalized Descriptors</strong></p>
+                </div>
+            </div>
+
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="BOutputs/B2_2_descriptor_context.jpg" alt="40x40 context windows">
+                    <p><strong>Example 2: 40×40 Sampling Windows</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="BOutputs/B2_2_descriptor_patches.jpg" alt="8x8 feature descriptors">
+                    <p><strong>Example 2: 8×8 Normalized Descriptors</strong></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>B.3: Feature Matching</h2>
+            <p>
+                I implemented feature matching using Lowe's ratio test with symmetric (mutual nearest neighbor) constraints. For each descriptor in image 1, I compute the ratio between its nearest and second-nearest neighbor distances in image 2, accepting matches only when the ratio is below 0.75.
+            </p>
+
+            <h3>Feature Matches</h3>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="BOutputs/B3_matches.jpg" alt="Feature matches between image pair">
+                    <p><strong>Matched Features Between Image Pair</strong><br>Symmetric Lowe ratio < 0.75</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>B.4: RANSAC & Automatic Image Stitching</h2>
+            <p>
+                I implemented 4-point RANSAC from scratch to compute robust homographies. Each iteration randomly samples 4 matched feature pairs, computes a candidate homography, and counts inliers (matches with reprojection error < 3.0 pixels). After 5000 iterations, the homography with the most inliers is refined using all inlier correspondences via least-squares.
             </p>
             <p>
-                The interpolation comparison made the trade-offs between speed and quality concrete. Most importantly, I learned that successful image mosaicing requires careful attention to every stage of the pipeline - from image capture to point selection to blending strategy. Each component contributes to the final result, and weaknesses in any stage can compromise the entire mosaic.
+                The automatic stitching pipeline combines all previous steps: Harris corner detection, ANMS, descriptor extraction, feature matching (symmetric Lowe ratio < 0.75, top 500 matches), RANSAC homography estimation, mosaic blending. Below are comparisons of manually-stitched mosaics from Part A with automatically-stitched versions using the same image pairs.
+            </p>
+
+            <h3>Mosaic Comparisons: Manual vs. Automatic</h3>
+            
+            <div class="mosaic-section">
+                <h4>Mosaic 1: Manual vs. Automatic</h4>
+                <div class="comparison-grid">
+                    <div class="comparison-item">
+                        <img src="AOutputs/A4_final_mosaic.jpg" alt="Manual mosaic 1">
+                        <p><strong>Manual Stitching (Part A)</strong></p>
+                    </div>
+                    <div class="comparison-item">
+                        <img src="BOutputs/B4_mosaic1_final.jpg" alt="Automatic mosaic 1">
+                        <p><strong>Automatic Stitching (Part B)</strong></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mosaic-section">
+                <h4>Mosaic 2: Manual vs. Automatic</h4>
+                <div class="comparison-grid">
+                    <div class="comparison-item">
+                        <img src="AOutputs/A4_mosaic2_final.jpg" alt="Manual mosaic 2">
+                        <p><strong>Manual Stitching (Part A)</strong></p>
+                    </div>
+                    <div class="comparison-item">
+                        <img src="BOutputs/B4_mosaic2_final.jpg" alt="Automatic mosaic 2">
+                        <p><strong>Automatic Stitching (Part B)</strong></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mosaic-section">
+                <h4>Mosaic 3: Manual vs. Automatic</h4>
+                <div class="comparison-grid">
+                    <div class="comparison-item">
+                        <img src="AOutputs/A4_mosaic3_final.jpg" alt="Manual mosaic 3">
+                        <p><strong>Manual Stitching (Part A)</strong></p>
+                    </div>
+                    <div class="comparison-item">
+                        <img src="BOutputs/B4_mosaic3_final.jpg" alt="Automatic mosaic 3">
+                        <p><strong>Automatic Stitching (Part B)</strong></p>
+                    </div>
+                </div>
+            </div>
+
+            <h3>Results & Discussion</h3>
+            <p>
+                The automatic stitching pipeline successfully produces mosaics comparable to and even better than manual correspondence selection. RANSAC effectively filters outliers from the feature matching stage, identifying robust inlier sets from the initial matched features. The symmetric Lowe ratio constraint significantly improves match quality compared to one-way matching. Automatic feature detection eliminates the tedious manual point selection process while improving alignment accuracy.
             </p>
         </div>
-    </div>
 
     <a href="../index.html" class="button">Back to Home</a>
 </body>
