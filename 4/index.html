@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Project 4: Neural Radiance Field</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body class="centered">
+    <div class="banner">Project 4: Neural Radiance Field</div>
+
+    <div class="main-content">
+        <div class="card">
+            <h2>Overview</h2>
+            <p>
+                This project implements Neural Radiance Fields (NeRF) to represent 3D scenes from multi-view images. I calibrated my camera using ArUco tags, captured a 3D scan of a PS5 controller, and trained neural networks to reconstruct both 2D images and 3D scenes through inverse rendering.
+            </p>
+            <p>
+                <strong>Part 0</strong> covers camera calibration using ArUco tags, pose estimation for my PS5 controller scan, and dataset creation. <strong>Part 1</strong> introduces neural fields by fitting a 2D image using an MLP with positional encoding. <strong>Part 2</strong> extends this to 3D, implementing volume rendering and training a NeRF on both the provided Lego dataset and my custom PS5 controller dataset.
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>Part 0: Calibrating Your Camera and Capturing a 3D Scan</h2>
+            <p>
+                In this part, I calibrated my camera using ArUco tags and captured a 3D scan of a PS5 controller. The process involved detecting ArUco markers, computing camera intrinsics, estimating camera poses, and creating a dataset for NeRF training.
+            </p>
+
+            <h3>Part 0.1: Calibrating Your Camera</h3>
+            <p>
+                I captured about 40 images of calibration tags from different angles and distances, making sure to vary the camera position significantly. Using OpenCV's ArUco detector with DICT_4X4_50 dictionary, I extracted corner coordinates from detected tags. The tag size was 0.02m, so I defined the 4 corners in world coordinates as [(-0.01, 0.01, 0), (0.01, 0.01, 0), (0.01, -0.01, 0), (-0.01, -0.01, 0)] relative to the tag center.
+            </p>
+            <p>
+                My code handles cases where tags aren't detected in some images by checking if ids is not None before processing. I used cv2.calibrateCamera() with flags CALIB_FIX_K3 and CALIB_ZERO_TANGENT_DIST to compute the camera intrinsics matrix K and distortion coefficients. This gave me the focal length, principal point, and distortion parameters needed for later steps.
+            </p>
+
+            <h3>Part 0.2: Capturing a 3D Object Scan</h3>
+            <p>
+                I selected a PS5 controller as my object and placed it next to a single ArUco tag on a tabletop. I captured about 40 images from different angles, maintaining consistent camera settings and distance (about 10-20cm away so the controller fills ~50% of the frame).
+            </p>
+            <p>
+                I avoided brightness/exposure changes, prevented motion blur, and varied angles both horizontally and vertically while maintaining uniform distance from the controller. The controller's textured surface and distinct features like buttons and grips provided good visual cues for the NeRF to learn.
+            </p>
+
+            <h3>Part 0.3: Estimating Camera Pose</h3>
+            <p>
+                For each image in my object scan, I detected the ArUco tag and used cv2.solvePnPGeneric() with SOLVEPNP_IPPE_SQUARE flag to estimate the camera pose. This function returns two possible solutions for square tags, so I selected the one with the camera position further from the tag by checking which has positive z in camera space after converting to camera position.
+            </p>
+            <p>
+                The function returns rotation vectors (rvec) and translation vectors (tvec) in world-to-camera format. I converted these to camera-to-world (c2w) transformation matrices by computing R = cv2.Rodrigues(rvec)[0], then constructing c2w with R.T as the rotation and -R.T @ t as the translation. This c2w matrix represents where the camera is positioned and oriented in world space, which is what we need for NeRF training.
+            </p>
+
+            <h3>Deliverables: Camera Frustum Visualization</h3>
+            <p>
+                I visualized the camera poses using Viser to verify that the pose estimation worked correctly. The visualization shows camera frustums positioned in 3D space around the PS5 controller, with images displayed on each frustum to show the viewing angles.
+            </p>
+            
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="rv1.png" alt="Camera frustums view 1">
+                    <p><strong>Camera Frustum Visualization - View 1</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="rv2.png" alt="Camera frustums view 2">
+                    <p><strong>Camera Frustum Visualization - View 2</strong></p>
+                </div>
+            </div>
+
+            <h3>Part 0.4: Undistorting Images and Creating a Dataset</h3>
+            <p>
+                I used cv2.undistort() to remove lens distortion from all images. To handle black boundaries that appear after undistortion, I used cv2.getOptimalNewCameraMatrix() with alpha=0 to crop out invalid pixels. This function returns a new camera matrix and a region of interest (ROI). I then updated the principal point in the new camera matrix to account for the crop offset by subtracting the ROI x and y coordinates from cx and cy.
+            </p>
+            <p>
+                After undistorting all images, I split them into training (80%), validation (10%), and used all images as test poses for novel view rendering. The dataset was saved as a .npz file with keys: images_train, c2ws_train, images_val, c2ws_val, c2ws_test, focal, K, dist, H, and W. Images are stored as float32 arrays in [0, 255] range, which get normalized to [0, 1] when loaded for training.
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>Part 1: Fit a Neural Field to a 2D Image</h2>
+            <p>
+                In this part, I implemented a neural field (MLP with positional encoding) to represent a 2D image. The network takes 2D pixel coordinates as input and outputs RGB colors, learning to reconstruct the image through optimization.
+            </p>
+
+            <h3>Implementation Details</h3>
+            <p>
+                I implemented a simple MLP with positional encoding that takes normalized 2D pixel coordinates as input and outputs RGB colors. The positional encoding uses sinusoidal functions to expand the 2D input into a higher-dimensional space, which helps the network learn high-frequency details in the image. For each frequency level L from 0 to max_freq-1, I compute sin(2^L × π × x) and cos(2^L × π × x) for both x and y coordinates, then concatenate these with the original coordinates.
+            </p>
+            <p>
+                The network architecture consists of 3 fully connected hidden layers with ReLU activations, followed by a final linear layer with Sigmoid activation to output RGB values in [0, 1]. I normalize both the input coordinates (by dividing by image width/height) and the target colors (by dividing by 255) to keep everything in [0, 1] range.
+            </p>
+            <p>
+                During training, I randomly sample 10,000 pixels per iteration from the full image. I use Adam optimizer with learning rate 1e-2 and MSE loss. Training runs for 2000 iterations. At certain iteration milestones (0, 400, 800, 1200, 1600, 1999), I render the full image to visualize progress. The rendering is done in chunks of 65,536 pixels to avoid running out of GPU memory.
+            </p>
+
+            <h3>Deliverables: Model Architecture Report</h3>
+            <p>
+                I experimented with different network architectures and hyperparameters to find configurations that work well for image reconstruction. The best performing configuration used L=10 positional encoding frequency and width=256.
+            </p>
+            
+            <div class="equation-box">
+                <strong>Model Architecture</strong><br>
+                Number of hidden layers: 3<br>
+                Hidden dimension width: 64 or 256 (tested both)<br>
+                Learning rate: 1e-2<br>
+                Max positional encoding frequency (L): 2 or 10 (tested both)<br>
+                Positional encoding output dimension: 2 + 2×2×L (includes original coordinates + sin/cos for each frequency)<br>
+                Activation functions: ReLU (hidden layers), Sigmoid (output layer)<br>
+                Loss function: MSE<br>
+                Optimizer: Adam<br>
+                Batch size: 10,000 pixels per iteration<br>
+                Number of iterations: 2000<br>
+                Training images: Normalized to [0, 1] range, coordinates normalized to [0, 1] by dividing by image dimensions
+            </div>
+            
+            <p>
+                The positional encoding expands the 2D input coordinates into a higher-dimensional space using sinusoidal functions. For L=10, this creates a 42-dimensional vector (2 original + 2×2×10 encoded). The MLP then processes this encoded input through 3 fully connected layers with ReLU activations, followed by a final linear layer with Sigmoid activation to output RGB values in [0, 1].
+            </p>
+
+            <h3>Deliverables: Training Progression</h3>
+            <p>
+                I tracked the training progress by rendering the full image at regular intervals. The network starts with random initialization and gradually learns to reconstruct the image details. Below shows the progression for both the provided test image and one of my own images, using the L=10, width=256 configuration which produced the best results.
+            </p>
+            
+            <h4>Training Progression: Provided Test Image</h4>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="nerf_2d_runs/L10_W256/provided_image/progress_iter_00000.png" alt="Iteration 0">
+                    <p><strong>Iteration 0</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="nerf_2d_runs/L10_W256/provided_image/progress_iter_00400.png" alt="Iteration 400">
+                    <p><strong>Iteration 400</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="nerf_2d_runs/L10_W256/provided_image/progress_iter_00800.png" alt="Iteration 800">
+                    <p><strong>Iteration 800</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="nerf_2d_runs/L10_W256/provided_image/progress_iter_01200.png" alt="Iteration 1200">
+                    <p><strong>Iteration 1200</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="nerf_2d_runs/L10_W256/provided_image/progress_iter_01600.png" alt="Iteration 1600">
+                    <p><strong>Iteration 1600</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="nerf_2d_runs/L10_W256/provided_image/progress_iter_01999.png" alt="Final">
+                    <p><strong>Final (Iteration 1999)</strong></p>
+                </div>
+            </div>
+
+            <h4>Training Progression: My Own Image</h4>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="nerf_2d_runs/L10_W256/my_image/progress_iter_00000.png" alt="Iteration 0">
+                    <p><strong>Iteration 0</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="nerf_2d_runs/L10_W256/my_image/progress_iter_00400.png" alt="Iteration 400">
+                    <p><strong>Iteration 400</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="nerf_2d_runs/L10_W256/my_image/progress_iter_00800.png" alt="Iteration 800">
+                    <p><strong>Iteration 800</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="nerf_2d_runs/L10_W256/my_image/progress_iter_01200.png" alt="Iteration 1200">
+                    <p><strong>Iteration 1200</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="nerf_2d_runs/L10_W256/my_image/progress_iter_01600.png" alt="Iteration 1600">
+                    <p><strong>Iteration 1600</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="nerf_2d_runs/L10_W256/my_image/progress_iter_01999.png" alt="Final">
+                    <p><strong>Final (Iteration 1999)</strong></p>
+                </div>
+            </div>
+
+            <h3>Deliverables: Hyperparameter Comparison (2x2 Grid)</h3>
+            <p>
+                I explored the effect of different hyperparameters on reconstruction quality by training networks with varying positional encoding frequencies (L) and network widths. I tested very low values (L=2) and higher values (L=10), as well as narrow (width=64) and wide (width=256) networks to understand the trade-offs. The L=10, width=256 configuration produced the best results, capturing fine details while maintaining smooth reconstruction.
+            </p>
+            
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="nerf_2d_runs/L2_W64/provided_image/reconstruction_final.png" alt="L=2, W=64">
+                    <p><strong>L=2, Width=64</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="nerf_2d_runs/L2_W256/provided_image/reconstruction_final.png" alt="L=2, W=256">
+                    <p><strong>L=2, Width=256</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="nerf_2d_runs/L10_W64/provided_image/reconstruction_final.png" alt="L=10, W=64">
+                    <p><strong>L=10, Width=64</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="nerf_2d_runs/L10_W256/provided_image/reconstruction_final.png" alt="L=10, W=256">
+                    <p><strong>L=10, Width=256</strong></p>
+                </div>
+            </div>
+
+            <h3>Deliverables: PSNR Curve</h3>
+            <p>
+                I computed PSNR (Peak Signal-to-Noise Ratio) at each training iteration to quantify the reconstruction quality. The PSNR curve shows how the network improves over time, with higher values indicating better reconstruction. The L=10, width=256 configuration achieved the highest PSNR, demonstrating the importance of both high-frequency positional encoding and sufficient network capacity.
+            </p>
+            
+            <div class="comparison-item">
+                <img src="nerf_2d_runs/L10_W256/my_image/psnr_curve.png" alt="PSNR Curve">
+                <p><strong>Training PSNR Curve (L=10, Width=256)</strong></p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Part 2: Fit a Neural Radiance Field from Multi-view Images</h2>
+            <p>
+                In this part, I implemented a full NeRF pipeline to represent a 3D scene from multi-view calibrated images. This includes ray generation, point sampling, volume rendering, and training a neural radiance field on the Lego dataset.
+            </p>
+
+            <h3>Part 2.1: Create Rays from Cameras</h3>
+            <p>
+                I implemented three key functions to convert pixel coordinates into 3D rays. The transform(c2w, x_c) function transforms points from camera space to world space using the camera-to-world transformation matrix, supporting both batched and single point inputs. The pixel_to_camera(K, uv, s=1.0) function converts pixel coordinates to camera coordinates by inverting the camera intrinsics matrix K, handling batched UV coordinates. Finally, pixel_to_ray(K, c2w, uv) converts pixel coordinates to rays with origin and normalized direction. The ray origin is the camera position (translation component of c2w), and the direction is computed by transforming a point at depth=1 from pixel to world space, then normalizing.
+            </p>
+            <p>
+                I added a 0.5 offset to UV coordinates to account for pixel center vs. pixel corner. The ray direction is normalized to unit length for consistent sampling along the ray.
+            </p>
+
+            <h3>Part 2.2: Sampling</h3>
+            <p>
+                I implemented a RaysData class that precomputes all rays for all training images, storing UV coordinates, ray origins, ray directions, and corresponding pixel colors. During training, I randomly sample 16,384 rays per iteration (or 10,000 on CPU) from this precomputed set. Each ray is converted from pixel coordinates to 3D space using the camera intrinsics K and camera-to-world transformation c2w.
+            </p>
+            <p>
+                I discretize each ray into 64 points uniformly spaced between near=2.0 and far=6.0 for the Lego scene. During training, I add random perturbation to these sample positions within each interval to prevent overfitting to fixed locations. The perturbation is computed by dividing the interval between consecutive samples in half, then adding random noise scaled by the interval width. This ensures every location along the ray can be sampled during training while maintaining roughly uniform spacing.
+            </p>
+            <p>
+                The 3D sample points are computed as points = ray_origin + ray_direction × t, where t are the perturbed depth values along the ray. These points are then fed into the NeRF network to predict density and color.
+            </p>
+
+            <h3>Part 2.3: Training Details</h3>
+            <p>
+                I trained the NeRF using Adam optimizer with learning rate 5e-4 and MSE loss between predicted and ground truth pixel colors. Training ran for 2000 iterations with a batch size of 16,384 rays per iteration (on GPU). Every 100 iterations, I evaluated on the validation set by sampling 1000 rays and computing PSNR. The model was saved every 500 iterations as checkpoints.
+            </p>
+            <p>
+                I used mixed precision training (torch.amp.autocast) when running on CUDA to speed up training. The network architecture uses 8 layers with hidden dimension 256, positional encoding L_pos=10 for coordinates and L_dir=4 for view direction. The input injection at layer 4 helps maintain coordinate information in deeper layers, which is crucial for learning fine geometric details.
+            </p>
+
+            <h3>Deliverables: Visualization of Rays and Samples</h3>
+            <p>
+                I visualized the ray sampling process to verify that rays are correctly generated from pixel coordinates and that sample points are distributed along the rays. The visualization shows camera frustums positioned around the scene, sampled rays (up to 100) extending from the cameras, and the 3D sample points along those rays. The rays converge toward the center where the object is located, and the sample points are distributed along each ray between the near and far bounds.
+            </p>
+            
+            <div class="comparison-item">
+                <img src="p2rayvisual.png" alt="Rays and Samples Visualization">
+                <p><strong>Rays and Samples Visualization</strong></p>
+            </div>
+
+            <h3>Part 2.4: Neural Radiance Field</h3>
+            <p>
+                The NeRF network takes 3D world coordinates and view direction as input, outputting density and RGB color for each point. I implemented the network with positional encoding for both coordinates and view direction, allowing it to learn high-frequency details while maintaining view-dependent effects.
+            </p>
+            
+            <div class="equation-box">
+                <strong>NeRF Network Architecture</strong><br>
+                Number of layers: 8<br>
+                Hidden dimension: 256<br>
+                Positional encoding for coordinates (L_pos): 10<br>
+                Positional encoding for view direction (L_dir): 4<br>
+                Coordinate encoding dimension: 3 × (2×10 + 1) = 63<br>
+                View direction encoding dimension: 3 × (2×4 + 1) = 27<br>
+                Input injection: At layer 4 (middle layer), concatenate original encoded coordinates<br>
+                Density head: Single linear layer → ReLU (ensures non-negative density)<br>
+                Color head: Linear(hidden_dim + dir_dim → hidden_dim//2) → ReLU → Linear(hidden_dim//2 → 3) → Sigmoid<br>
+                Activation functions: ReLU (hidden layers), ReLU (density), Sigmoid (color output)
+            </div>
+            
+            <p>
+                The network first encodes the 3D coordinates using sinusoidal positional encoding with L=10, creating a 63-dimensional vector. This encoded representation passes through 8 fully connected layers. At the 4th layer, I inject the original encoded coordinates again via concatenation, which helps the network maintain information about the input location in deeper layers. The density is predicted from the final hidden features using a single linear layer with ReLU to ensure non-negative values. For color prediction, I concatenate the hidden features with the encoded view direction (L=4, 27 dimensions) before passing through a two-layer MLP with Sigmoid output to constrain colors to [0, 1].
+            </p>
+
+            <h3>Part 2.5: Volume Rendering</h3>
+            <p>
+                Volume rendering composites the density and color predictions along each ray to produce the final pixel color. I implemented the discrete approximation of the volume rendering integral:
+            </p>
+            <div class="equation-box">
+                C(r) = Σᵢ Tᵢ(1 - exp(-σᵢδᵢ))cᵢ<br>
+                where Tᵢ = exp(-Σⱼ&lt;ᵢ σⱼδⱼ) is the transmittance<br>
+                αᵢ = 1 - exp(-σᵢδᵢ) is the alpha value<br>
+                wᵢ = Tᵢ × αᵢ is the weight for sample i
+            </div>
+            <p>
+                For each ray, I sample 64 points uniformly between near=2.0 and far=6.0 for the Lego scene. During training, I add random perturbation to these sample positions within each interval to avoid overfitting to fixed locations. The network predicts density σ and color c for each sample point. I compute the transmittance Tᵢ using cumulative product (torch.cumprod) of (1 - α) values, which represents how much light reaches sample i without being absorbed. The final rendered color is the weighted sum of all sample colors along the ray, where weights account for both density and transmittance.
+            </p>
+            <p>
+                My implementation uses PyTorch operations (cumprod, exp, etc.) to ensure gradients flow through the rendering process during backpropagation. The implementation passes the provided test case, confirming correctness of the volume rendering equation.
+            </p>
+
+            <h3>Deliverables: Training Progression</h3>
+            <p>
+                I rendered images from a novel viewpoint at regular intervals during training to visualize how the NeRF learns to represent the 3D scene. The network starts with a blurry, low-quality reconstruction and gradually refines details as training progresses.
+            </p>
+            
+            <div class="comparison-item">
+                <img src="lego/progression_strip.png" alt="Training Progression">
+                <p><strong>Training Progression</strong></p>
+            </div>
+
+            <h3>Deliverables: PSNR Curve on Validation Set</h3>
+            <p>
+                I evaluated the NeRF on the validation set every 100 iterations to monitor generalization performance. The validation PSNR curve shows how well the model performs on unseen viewpoints, helping identify when the model has learned a good 3D representation.
+            </p>
+            
+            <div class="comparison-item">
+                <img src="lego/psnr_curve.png" alt="PSNR">
+                <p><strong>Validation PSNR Curve</strong></p>
+            </div>
+
+            <h3>Deliverables: Spherical Rendering Video</h3>
+            <p>
+                I rendered novel views of the Lego scene using the provided test camera poses arranged in a spherical path. This demonstrates the NeRF's ability to generate photorealistic views from arbitrary camera positions, showing smooth transitions and consistent geometry from all angles.
+            </p>
+            
+            <div class="comparison-item">
+                <img src="lego/spherical_video.gif" alt="Spherical Rendering">
+                <p><strong>Spherical Rendering Video</strong></p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Part 2.6: Training with Your Own Data</h2>
+            <p>
+                I trained a NeRF on my PS5 controller dataset collected in Part 0. Since the controller was captured at close range compared to the Lego scene, I needed to adjust several hyperparameters to match the different scene scale.
+            </p>
+
+            <h3>Hyperparameter Adjustments</h3>
+            <p>
+                The PS5 controller was captured much closer to the camera than the Lego scene, so I had to significantly adjust the near and far bounds. The controller fills most of the frame and is only about 10-20cm from the camera, so the depth range is much smaller than the Lego scene which is meters away.
+            </p>
+            
+            <div class="equation-box">
+                <strong>Hyperparameter Changes for PS5 Controller Dataset</strong><br>
+                • Near bound: 0.001 (original: 2.0)<br>
+                • Far bound: 0.5 (original: 6.0)<br>
+                • Number of samples per ray: 128 (original: 64)<br>
+                • Hidden dimension: 512 (original: 256)<br>
+                • Positional encoding L_pos: 12 (original: 10)<br>
+                • Positional encoding L_dir: 4 (unchanged)<br>
+                • Learning rate: 5e-4 (unchanged)<br>
+                • Batch size: 5,000 rays per iteration<br>
+                • Number of iterations: 2000<br>
+                • Image resolution: Kept original resolution from calibration
+            </div>
+            
+            <p>
+                I increased the number of samples per ray from 64 to 128 to capture finer details of the controller's surface, buttons, and texture. The smaller depth range (0.001 to 0.5) required more samples to maintain the same sampling density. I also increased the hidden dimension to 512 and L_pos to 12 to give the network more capacity to learn the detailed geometry and appearance of the controller. The smaller batch size of 5,000 rays per iteration was necessary due to the increased number of samples per ray, which increases memory usage.
+            </p>
+
+            <h3>Deliverables: Training Loss Plot</h3>
+            <p>
+                I tracked the training loss throughout training to monitor convergence. The loss decreases as the NeRF learns to represent the PS5 controller's geometry and appearance.
+            </p>
+            
+            <div class="comparison-item">
+                <img src="owndata/train_loss_curve.png" alt="Training Loss">
+                <p><strong>Training Loss Curve</strong></p>
+            </div>
+
+            <h3>Deliverables: Intermediate Renders During Training</h3>
+            <p>
+                I captured intermediate renders during training to visualize how the NeRF gradually learns to represent the PS5 controller. The network starts with a blurry reconstruction and progressively refines details like the controller's shape, buttons, and surface texture.
+            </p>
+            
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="owndata/train_snaps/iter_00400.png" alt="Iteration 400">
+                    <p><strong>Iteration 400</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="owndata/train_snaps/iter_00800.png" alt="Iteration 800">
+                    <p><strong>Iteration 800</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="owndata/train_snaps/iter_01200.png" alt="Iteration 1200">
+                    <p><strong>Iteration 1200</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="owndata/train_snaps/iter_01600.png" alt="Iteration 1600">
+                    <p><strong>Iteration 1600</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="owndata/train_snaps/iter_02000.png" alt="Final">
+                    <p><strong>Final (Iteration 2000)</strong></p>
+                </div>
+            </div>
+
+            <h3>Deliverables: Novel View GIF</h3>
+            <p>
+                I generated a circular camera path around the PS5 controller and rendered novel views from each pose. The resulting GIF demonstrates the NeRF's ability to generate photorealistic views of the controller from arbitrary viewpoints, showing smooth rotation and consistent geometry.
+            </p>
+            
+            <div class="comparison-item">
+                <img src="owndata/final_orbit.gif" alt="Novel View GIF">
+                <p><strong>Novel View Rendering - Camera Orbit</strong></p>
+            </div>
+        </div>
+
+
+    </div>
+
+    <a href="../index.html" class="button">Back to Home</a>
+</body>
+</html>
+
