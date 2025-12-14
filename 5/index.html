@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Project 5: Diffusion Models and Flow Matching</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body class="centered project5">
+    <div class="banner">Project 5: Diffusion Models and Flow Matching</div>
+
+    <div class="main-content">
+        <div class="card">
+            <h2>Overview</h2>
+            <p>
+                This project explores diffusion models from two angles. In <strong>Part A</strong>, I work with the pretrained DeepFloyd IF model to implement sampling loops and creative applications like SDEdit, visual anagrams, and hybrid images. In <strong>Part B</strong>, I build and train my own flow matching models from scratch on MNIST, starting with simple single-step denoisers and progressing to time and class-conditioned UNets with classifier-free guidance.
+            </p>
+        </div>
+
+        <div class="card">
+            <h1 class="section-title">Part A: Diffusion Models with DeepFloyd IF</h1>
+        </div>
+
+        <div class="card">
+            <h2>Part 0: Setup and Text-to-Image Generation</h2>
+            <p>
+                I used DeepFloyd IF, a two-stage diffusion model that first generates 64×64 images, then upsamples them to 256×256. For reproducibility, I set random seed <strong>71</strong> throughout. I experimented with creative text prompts and different inference step counts—more steps give better quality but take longer.
+            </p>
+
+            <h3>Deliverables: Text Prompt Exploration</h3>
+            
+            <h4>Prompt 1: "a photo of a futuristic orchard with glowing trees"</h4>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part0_prompt1_steps20.png" alt="Prompt 1 - 20 steps">
+                    <p><strong>20 inference steps</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part0_prompt1_steps50.png" alt="Prompt 1 - 50 steps">
+                    <p><strong>50 inference steps</strong></p>
+                </div>
+            </div>
+
+            <h4>Prompt 2: "a watercolor painting of a small raccoon scientist"</h4>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part0_prompt2_steps20.png" alt="Prompt 2 - 20 steps">
+                    <p><strong>20 inference steps</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part0_prompt2_steps50.png" alt="Prompt 2 - 50 steps">
+                    <p><strong>50 inference steps</strong></p>
+                </div>
+            </div>
+
+            <h4>Prompt 3: "a 3D render of a robot repairing a satellite"</h4>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part0_prompt3_steps20.png" alt="Prompt 3 - 20 steps">
+                    <p><strong>20 inference steps</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part0_prompt3_steps50.png" alt="Prompt 3 - 50 steps">
+                    <p><strong>50 inference steps</strong></p>
+                </div>
+            </div>
+
+            <p>
+                <strong>Observations:</strong> The model produces higher quality images with more inference steps, showing finer details and better coherence. You can see how well the model understands both objects and artistic styles from the relationship between the text prompts and generated images. More abstract prompts sometimes lead to creative interpretations by the model.
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>Part 1: Sampling Loops</h2>
+            
+            <h3>Part 1.1: Implementing the Forward Process</h3>
+            <p>
+                The forward process adds noise to a clean image according to a predefined schedule. Given a clean image x₀, we can obtain a noisy image xₜ at timestep t by computing xₜ = √(ᾱₜ) · x₀ + √(1 - ᾱₜ) · ε, where ε is sampled from a Gaussian distribution and ᾱₜ is a noise schedule parameter that controls how much noise is added at each timestep. I implemented this forward process and tested it on the Berkeley Campanile image at different noise levels. As t increases, more noise gets added to the image and it becomes harder to see the original content.
+            </p>
+            
+            <h4>Deliverables: Noisy Campanile</h4>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_1_campanile_original.png" alt="Original Campanile">
+                    <p><strong>Original Campanile</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_1_campanilet250.png" alt="Noisy at t=250">
+                    <p><strong>Noisy at t=250</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_1_campanilet500.png" alt="Noisy at t=500">
+                    <p><strong>Noisy at t=500</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_1_campanilet750.png" alt="Noisy at t=750">
+                    <p><strong>Noisy at t=750</strong></p>
+                </div>
+            </div>
+
+            <h3>Part 1.2: Classical Denoising</h3>
+            <p>
+                I attempted to denoise the noisy Campanile images using classical Gaussian blur filtering. This approach struggles a lot, especially at higher noise levels, since Gaussian blur can't distinguish between noise and actual image content. It just smooths everything uniformly, resulting in blurry images that don't recover the original details.
+            </p>
+            
+            <h4>Deliverables: Gaussian Blur Denoising</h4>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_2_gaussian_t250.png" alt="Gaussian denoised t=250">
+                    <p><strong>Gaussian Denoised (t=250)</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_2_gaussian_t500.png" alt="Gaussian denoised t=500">
+                    <p><strong>Gaussian Denoised (t=500)</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_2_gaussian_t750.png" alt="Gaussian denoised t=750">
+                    <p><strong>Gaussian Denoised (t=750)</strong></p>
+                </div>
+            </div>
+
+            <h3>Part 1.3: One-Step Denoising</h3>
+            <p>
+                Using the pretrained DeepFloyd UNet, I can estimate the noise in an image at timestep t and remove it to recover an estimate of the original image. The UNet was trained on millions of image-noise pairs and learned to predict noise conditioned on both the timestep and text prompt embeddings. This works much better than Gaussian blur, especially at lower noise levels.
+            </p>
+            
+            <h4>Deliverables: One-Step Denoising Results</h4>
+            <p>For each noise level, I show the original image, the noisy image, and the one-step denoised estimate:</p>
+            
+            <h5>t=250</h5>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_1_campanile_original.png" alt="Original">
+                    <p><strong>Original</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_1_campanilet250.png" alt="Noisy t=250">
+                    <p><strong>Noisy (t=250)</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_3_onestep_t250.png" alt="One-step denoised t=250">
+                    <p><strong>One-Step Denoised</strong></p>
+                </div>
+            </div>
+
+            <h5>t=500</h5>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_1_campanile_original.png" alt="Original">
+                    <p><strong>Original</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_1_campanilet500.png" alt="Noisy t=500">
+                    <p><strong>Noisy (t=500)</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_3_onestep_t500.png" alt="One-step denoised t=500">
+                    <p><strong>One-Step Denoised</strong></p>
+                </div>
+            </div>
+
+            <h5>t=750</h5>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_1_campanile_original.png" alt="Original">
+                    <p><strong>Original</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_1_campanilet750.png" alt="Noisy t=750">
+                    <p><strong>Noisy (t=750)</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_3_onestep_t750.png" alt="One-step denoised t=750">
+                    <p><strong>One-Step Denoised</strong></p>
+                </div>
+            </div>
+
+            <h3>Part 1.4: Iterative Denoising</h3>
+            <p>
+                Diffusion models are designed to denoise iteratively. Instead of removing all noise in one step, we gradually remove noise over multiple steps. I implemented the DDPM sampling algorithm with a strided timestep schedule (starting at t=990, stepping by 30 down to t=0). At each step, we predict the noise εₜ using the UNet, estimate the clean image x̂₀, compute xₜ₋₁ using the DDPM update equation, and add a small amount of random variance to keep things diverse during generation.
+            </p>
+            
+            <h4>Deliverables: Iterative Denoising Progression</h4>
+            <p>Starting from a noisy image, I show the gradual denoising process at multiple steps:</p>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_4_iter_step10.png" alt="Iteration 10">
+                    <p><strong>Step 10</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_4_iter_step15.png" alt="Iteration 15">
+                    <p><strong>Step 15</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_4_iter_step20.png" alt="Iteration 20">
+                    <p><strong>Step 20</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_4_iter_step25.png" alt="Iteration 25">
+                    <p><strong>Step 25</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_4_iter_step30.png" alt="Iteration 30">
+                    <p><strong>Step 30</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_4_iterative_final.png" alt="Final">
+                    <p><strong>Final Result</strong></p>
+                </div>
+            </div>
+
+            <h4>Comparison: Iterative vs One-Step vs Gaussian Blur</h4>
+            <p>Here I compare the three denoising methods side by side, starting from the same noisy image at t=250:</p>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_1_campanile_original.png" alt="Original">
+                    <p><strong>Original Image</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_1_campanilet250.png" alt="Noisy">
+                    <p><strong>Noisy (t=250)</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_4_iterative_final.png" alt="Iterative">
+                    <p><strong>Iterative Denoising</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_3_onestep_t250.png" alt="One-step">
+                    <p><strong>One-Step Denoising</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_2_gaussian_t250.png" alt="Gaussian">
+                    <p><strong>Gaussian Blur</strong></p>
+                </div>
+            </div>
+            <p>
+                <strong>Observations:</strong> Iterative denoising produces the best results, recovering fine details and structure. One-step denoising is decent but loses some detail. Gaussian blur performs poorly, just creating a blurry result without recovering the original structure.
+            </p>
+
+            <h3>Part 1.5: Diffusion Model Sampling</h3>
+            <p>
+                By starting with pure Gaussian noise (i_start=0) and running iterative denoising, we can generate entirely new images from scratch. I generated 5 samples using the prompt "a high quality photo" to show how unconditional image generation works.
+            </p>
+            
+            <h4>Deliverables: Generated Samples</h4>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_5_sample1.png" alt="Sample 1">
+                    <p><strong>Sample 1</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_5_sample2.png" alt="Sample 2">
+                    <p><strong>Sample 2</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_5_sample3.png" alt="Sample 3">
+                    <p><strong>Sample 3</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_5_sample4.png" alt="Sample 4">
+                    <p><strong>Sample 4</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_5_sample5.png" alt="Sample 5">
+                    <p><strong>Sample 5</strong></p>
+                </div>
+            </div>
+
+            <h3>Part 1.6: Classifier-Free Guidance (CFG)</h3>
+            <p>
+                To improve image quality, I implemented Classifier-Free Guidance (CFG). This technique computes both conditional and unconditional noise estimates, then extrapolates beyond the conditional estimate using the formula ε = ε_uncond + γ · (ε_cond - ε_uncond), where γ=7 controls the guidance strength. CFG makes the images way better and more aligned with the text, though it reduces diversity. The unconditional estimate uses an empty prompt "" as the text embedding.
+            </p>
+            
+            <h4>Deliverables: CFG Samples</h4>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_6_cfg_sample1.png" alt="CFG Sample 1">
+                    <p><strong>CFG Sample 1</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_6_cfg_sample2.png" alt="CFG Sample 2">
+                    <p><strong>CFG Sample 2</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_6_cfg_sample3.png" alt="CFG Sample 3">
+                    <p><strong>CFG Sample 3</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_6_cfg_sample4.png" alt="CFG Sample 4">
+                    <p><strong>CFG Sample 4</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_6_cfg_sample5.png" alt="CFG Sample 5">
+                    <p><strong>CFG Sample 5</strong></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Part 1.7: Image-to-Image Translation (SDEdit)</h2>
+            <p>
+                Using the SDEdit algorithm, we can edit real images by adding noise and then denoising with CFG. The amount of noise (controlled by i_start) determines how much the image changes: higher i_start values add more noise, allowing larger edits while lower values preserve more of the original.
+            </p>
+
+            <h3>SDEdit on Campanile</h3>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_1_campanile_original.png" alt="Original">
+                    <p><strong>Original</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_campanile_i1.png" alt="i_start=1">
+                    <p><strong>i_start=1</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_campanile_i3.png" alt="i_start=3">
+                    <p><strong>i_start=3</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_campanile_i5.png" alt="i_start=5">
+                    <p><strong>i_start=5</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_campanile_i7.png" alt="i_start=7">
+                    <p><strong>i_start=7</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_campanile_i10.png" alt="i_start=10">
+                    <p><strong>i_start=10</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_campanile_i20.png" alt="i_start=20">
+                    <p><strong>i_start=20</strong></p>
+                </div>
+            </div>
+
+            <h3>SDEdit on Custom Images</h3>
+            <h4>Custom Image 1</h4>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_custom1_original.png" alt="Original">
+                    <p><strong>Original</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_custom1_i1.png" alt="i_start=1">
+                    <p><strong>i_start=1</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_custom1_i3.png" alt="i_start=3">
+                    <p><strong>i_start=3</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_custom1_i5.png" alt="i_start=5">
+                    <p><strong>i_start=5</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_custom1_i7.png" alt="i_start=7">
+                    <p><strong>i_start=7</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_custom1_i10.png" alt="i_start=10">
+                    <p><strong>i_start=10</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_custom1_i20.png" alt="i_start=20">
+                    <p><strong>i_start=20</strong></p>
+                </div>
+            </div>
+
+            <h4>Custom Image 2</h4>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_custom2_original.png" alt="Original">
+                    <p><strong>Original</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_custom2_i1.png" alt="i_start=1">
+                    <p><strong>i_start=1</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_custom2_i3.png" alt="i_start=3">
+                    <p><strong>i_start=3</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_custom2_i5.png" alt="i_start=5">
+                    <p><strong>i_start=5</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_custom2_i7.png" alt="i_start=7">
+                    <p><strong>i_start=7</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_custom2_i10.png" alt="i_start=10">
+                    <p><strong>i_start=10</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_custom2_i20.png" alt="i_start=20">
+                    <p><strong>i_start=20</strong></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Part 1.7.1: Editing Hand-Drawn and Web Images</h2>
+            <p>
+                SDEdit works really well for projecting non-realistic images (sketches, paintings, drawings) onto the natural image manifold. I tested this with one web image and two hand-drawn sketches.
+            </p>
+
+            <h3>Web Image Editing</h3>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_1_web_original.png" alt="Original web image">
+                    <p><strong>Original</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_1_web_i1.png" alt="i_start=1">
+                    <p><strong>i_start=1</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_1_web_i3.png" alt="i_start=3">
+                    <p><strong>i_start=3</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_1_web_i5.png" alt="i_start=5">
+                    <p><strong>i_start=5</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_1_web_i7.png" alt="i_start=7">
+                    <p><strong>i_start=7</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_1_web_i10.png" alt="i_start=10">
+                    <p><strong>i_start=10</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_1_web_i20.png" alt="i_start=20">
+                    <p><strong>i_start=20</strong></p>
+                </div>
+            </div>
+
+            <h3>Hand-Drawn Image 1</h3>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_1_sketch1_original.png" alt="Original sketch">
+                    <p><strong>Original Sketch</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_1_sketch1_i1.png" alt="i_start=1">
+                    <p><strong>i_start=1</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_1_sketch1_i3.png" alt="i_start=3">
+                    <p><strong>i_start=3</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_1_sketch1_i5.png" alt="i_start=5">
+                    <p><strong>i_start=5</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_1_sketch1_i7.png" alt="i_start=7">
+                    <p><strong>i_start=7</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_1_sketch1_i10.png" alt="i_start=10">
+                    <p><strong>i_start=10</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_1_sketch1_i20.png" alt="i_start=20">
+                    <p><strong>i_start=20</strong></p>
+                </div>
+            </div>
+
+            <h3>Hand-Drawn Image 2</h3>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_1_sketch2_original.png" alt="Original sketch">
+                    <p><strong>Original Sketch</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_1_sketch2_i1.png" alt="i_start=1">
+                    <p><strong>i_start=1</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_1_sketch2_i3.png" alt="i_start=3">
+                    <p><strong>i_start=3</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_1_sketch2_i5.png" alt="i_start=5">
+                    <p><strong>i_start=5</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_1_sketch2_i7.png" alt="i_start=7">
+                    <p><strong>i_start=7</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_1_sketch2_i10.png" alt="i_start=10">
+                    <p><strong>i_start=10</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_1_sketch2_i20.png" alt="i_start=20">
+                    <p><strong>i_start=20</strong></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Part 1.7.2: Inpainting</h2>
+            <p>
+                I implemented inpainting following the RePaint algorithm. Given an image and a binary mask, we can fill the masked region with new content while preserving the unmasked areas. At each denoising step, after computing xₜ₋₁, we replace the unmasked pixels with the appropriately noised version of the original image. This forces the unmasked regions to stay faithful to the original while allowing creative inpainting in the masked areas.
+            </p>
+
+            <h3>Campanile Inpainting</h3>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_1_campanile_original.png" alt="Original">
+                    <p><strong>Original</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_2_campanile_mask.png" alt="Mask">
+                    <p><strong>Mask</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_2_campanile_toreplace.png" alt="To Replace">
+                    <p><strong>Region to Replace</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_2_campanile_result.png" alt="Inpainted">
+                    <p><strong>Inpainted Result</strong></p>
+                </div>
+            </div>
+
+            <h3>Custom Inpainting 1</h3>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_2_im1_original.png" alt="Original">
+                    <p><strong>Original</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_2_im1_mask.png" alt="Mask">
+                    <p><strong>Mask</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_2_im1_toreplace.png" alt="To Replace">
+                    <p><strong>Region to Replace</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_2_im1_result.png" alt="Inpainted">
+                    <p><strong>Inpainted Result</strong></p>
+                </div>
+            </div>
+
+            <h3>Custom Inpainting 2</h3>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_2_im2_original.png" alt="Original">
+                    <p><strong>Original</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_2_im2_mask.png" alt="Mask">
+                    <p><strong>Mask</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_2_im2_toreplace.png" alt="To Replace">
+                    <p><strong>Region to Replace</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_2_im2_result.png" alt="Inpainted">
+                    <p><strong>Inpainted Result</strong></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Part 1.7.3: Text-Conditional Image-to-Image Translation</h2>
+            <p>
+                Building on SDEdit, I can now guide the image editing process with specific text prompts instead of just "a high quality photo". This allows for controlled transformations while maintaining some structure from the original image.
+            </p>
+
+            <h3>Text-Guided Campanile Edits</h3>
+            <p><em>Prompt: "a watercolor painting of a small raccoon scientist"</em></p>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_1_campanile_original.png" alt="Original">
+                    <p><strong>Original</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_3_campanile_i1.png" alt="i_start=1">
+                    <p><strong>i_start=1</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_3_campanile_i3.png" alt="i_start=3">
+                    <p><strong>i_start=3</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_3_campanile_i5.png" alt="i_start=5">
+                    <p><strong>i_start=5</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_3_campanile_i7.png" alt="i_start=7">
+                    <p><strong>i_start=7</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_3_campanile_i10.png" alt="i_start=10">
+                    <p><strong>i_start=10</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_3_campanile_i20.png" alt="i_start=20">
+                    <p><strong>i_start=20</strong></p>
+                </div>
+            </div>
+
+            <h3>Text-Guided Custom Edits 1</h3>
+            <p><em>Prompt: "a watercolor painting of a small raccoon scientist"</em></p>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_3_custom1_original.png" alt="Original">
+                    <p><strong>Original</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_3_custom1_i1.png" alt="i_start=1">
+                    <p><strong>i_start=1</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_3_custom1_i3.png" alt="i_start=3">
+                    <p><strong>i_start=3</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_3_custom1_i5.png" alt="i_start=5">
+                    <p><strong>i_start=5</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_3_custom1_i7.png" alt="i_start=7">
+                    <p><strong>i_start=7</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_3_custom1_i10.png" alt="i_start=10">
+                    <p><strong>i_start=10</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_3_custom1_i20.png" alt="i_start=20">
+                    <p><strong>i_start=20</strong></p>
+                </div>
+            </div>
+
+            <h3>Text-Guided Custom Edits 2</h3>
+            <p><em>Prompt: "a watercolor painting of a small raccoon scientist"</em></p>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_3_custom2_original.png" alt="Original">
+                    <p><strong>Original</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_3_custom2_i1.png" alt="i_start=1">
+                    <p><strong>i_start=1</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_3_custom2_i3.png" alt="i_start=3">
+                    <p><strong>i_start=3</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_3_custom2_i5.png" alt="i_start=5">
+                    <p><strong>i_start=5</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_3_custom2_i7.png" alt="i_start=7">
+                    <p><strong>i_start=7</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_3_custom2_i10.png" alt="i_start=10">
+                    <p><strong>i_start=10</strong></p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_7_3_custom2_i20.png" alt="i_start=20">
+                    <p><strong>i_start=20</strong></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Part 1.8: Visual Anagrams</h2>
+            <p>
+                Visual anagrams are optical illusions where an image shows one thing right-side up but reveals something completely different when flipped upside down. I implemented this by combining noise estimates from two different prompts at each denoising step. For each step, I estimate noise ε₁ for the first prompt using the noisy image xₜ, then flip the image upside down and estimate noise ε₂ for the second prompt before flipping back. I then average the two noise estimates as ε = (ε₁ + ε₂) / 2 and use this combined noise estimate to denoise the image. This makes the model try to satisfy both prompts at once, which creates the illusion.
+            </p>
+
+            <h3>Visual Anagram 1</h3>
+            <p><em>Prompts: "a wooden sailing ship on stormy seas" (normal) / "a portrait of a bearded pirate" (flipped)</em></p>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_8_anagram1_normal.png" alt="Anagram 1 normal">
+                    <p><strong>Normal View</strong><br>"a wooden sailing ship on stormy seas"</p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_8_anagram1_flipped.png" alt="Anagram 1 flipped">
+                    <p><strong>Flipped View</strong><br>"a portrait of a bearded pirate"</p>
+                </div>
+            </div>
+
+            <h3>Visual Anagram 2</h3>
+            <p><em>Prompts: "a drawing of a tree on a hill" (normal) / "a drawing of an owl's face" (flipped)</em></p>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_8_anagram2_normal.png" alt="Anagram 2 normal">
+                    <p><strong>Normal View</strong><br>"a drawing of a tree on a hill"</p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_8_anagram2_flipped.png" alt="Anagram 2 flipped">
+                    <p><strong>Flipped View</strong><br>"a drawing of an owl's face"</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Part 1.9: Hybrid Images</h2>
+            <p>
+                Hybrid images combine low-frequency content from one image with high-frequency content from another, similar to Project 2. I implemented this using Factorized Diffusion by combining noise estimates. For each denoising step, I estimate noise ε₁ for the first prompt and noise ε₂ for the second prompt, then apply a lowpass filter to ε₁ and a highpass filter to ε₂, and combine them as ε = lowpass(ε₁) + highpass(ε₂). I used Gaussian blur (kernel size 33, sigma 2) for the lowpass filter, and computed the highpass by subtracting the lowpass from the original. This creates images that show different content when viewed from different distances.
+            </p>
+
+            <h3>Hybrid Image Results</h3>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs/part1_9_hybrid1.png" alt="Hybrid 1">
+                    <p><strong>Hybrid Image 1</strong><br>Low freq: "a painting of mountains"<br>High freq: "a detailed drawing of a tiger's face"</p>
+                </div>
+                <div class="comparison-item">
+                    <img src="outputs/part1_9_hybrid2.png" alt="Hybrid 2">
+                    <p><strong>Hybrid Image 2</strong><br>Low freq: "a painting of rolling hills"<br>High freq: "a detailed drawing of a butterfly"</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h1 class="section-title with-margin">Part B: Flow Matching from Scratch</h1>
+        </div>
+
+        <div class="card">
+            <h2>Overview</h2>
+            <p>
+                In this part, I trained my own flow matching model on MNIST from scratch. Flow matching learns to transform noise into data through a continuous trajectory. I started with a basic single-step denoiser to see its limitations, then moved to time-conditioned flow matching for iterative denoising, and finally added class conditioning with classifier-free guidance to control which digit gets generated. All models were trained on Google Colab with T4 GPUs.
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>Part 1: Training a Single-Step Denoising UNet</h2>
+            <p>
+                I built a one-step denoiser that takes a noisy image z = x + σε and tries to predict the clean image x in a single pass. The UNet is trained with L2 loss to minimize the difference between its predictions and the ground truth clean images.
+            </p>
+
+            <h3>Part 1.1: Implementing the UNet</h3>
+            <p>
+                I implemented a UNet with downsampling and upsampling blocks connected by skip connections. The encoder downsamples 28×28 MNIST images using convolutions, while the decoder upsamples with transposed convolutions. Skip connections help preserve spatial details by concatenating encoder and decoder features at matching resolutions. The bottleneck compresses features to 1×1 before expanding back to 7×7.
+            </p>
+
+            <h3>Part 1.2: Using the UNet to Train a Denoiser</h3>
+            <p>
+                For training, I create noisy images by adding Gaussian noise: z = x + σε where σ = 0.5. The visualization below shows how different σ values affect MNIST digits—higher values mean more corruption.
+            </p>
+
+            <h4>Deliverable: Noising Process Visualization</h4>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs_b/part1_2.png" alt="Noising process with varying sigma" class="auto-size">
+                    <p><strong>Noising Process Visualization</strong><br>From left to right: σ = 0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0</p>
+                </div>
+            </div>
+
+            <h3>Part 1.2.1: Training</h3>
+            <p>
+                I trained the unconditional UNet with hidden dimension D = 128 on noisy MNIST digits with σ = 0.5. The model was trained for 5 epochs using batch size 256 and Adam optimizer with learning rate 1e-4. During training, I generated fresh noisy images for each batch so the network would see different noise patterns across epochs and generalize better. The training took approximately 3 minutes on a Colab T4 GPU.
+            </p>
+
+            <h4>Deliverables: Training Loss and Sample Results</h4>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs_b/part1_2_1_loss.png" alt="Training loss curve" class="auto-size">
+                    <p><strong>Training Loss Curve</strong></p>
+                </div>
+            </div>
+
+            <h5>Epoch 1 Results</h5>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs_b/part1_2_1_epoch1.png" alt="Epoch 1 samples" class="auto-size">
+                    <p><strong>Test Set Results after Epoch 1</strong><br>Top: Clean, Middle: Noisy (σ=0.5), Bottom: Denoised</p>
+                </div>
+            </div>
+
+            <h5>Epoch 5 Results</h5>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs_b/part1_2_1_epoch5.png" alt="Epoch 5 samples" class="auto-size">
+                    <p><strong>Test Set Results after Epoch 5</strong><br>Top: Clean, Middle: Noisy (σ=0.5), Bottom: Denoised</p>
+                </div>
+            </div>
+
+            <p>
+                <strong>Observations:</strong> The denoiser improves a lot between epoch 1 and epoch 5. After 5 epochs, the model successfully removes noise and recovers legible digits, though some fine details may be lost. The training loss steadily decreases, showing that the model is learning to map noisy inputs to clean outputs properly.
+            </p>
+
+            <h3>Part 1.2.2: Out-of-Distribution Testing</h3>
+            <p>
+                To test the robustness of the denoiser, I evaluated it on noise levels it wasn't trained for. The model was trained exclusively on σ = 0.5, so testing on other noise levels (σ ∈ {0.0, 0.2, 0.4, 0.6, 0.8, 1.0}) shows how well it works on unseen noise levels. As expected, performance degrades for noise levels far from 0.5, particularly at higher noise levels where the input signal is heavily corrupted.
+            </p>
+
+            <h4>Deliverable: Out-of-Distribution Testing Results</h4>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs_b/part1_2_2.png" alt="OOD testing" class="auto-size">
+                    <p><strong>OOD Testing with Varying σ</strong><br>Top: Clean, Middle: Noisy, Bottom: Denoised<br>Columns from left to right: σ = 0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0</p>
+                </div>
+            </div>
+
+            <p>
+                <strong>Observations:</strong> The denoiser performs reasonably well on noise levels close to 0.5 but struggles with extreme values. For low noise (σ = 0.2), the model tends to over-denoise, potentially removing legitimate features. For high noise (σ = 1.0), the model cannot fully recover the digit structure, since the input is too corrupted. This shows that training on just one noise level doesn't generalize well.
+            </p>
+
+            <h3>Part 1.2.3: Denoising Pure Noise</h3>
+            <p>
+                To explore whether a denoiser can act as a generative model, I trained a UNet to denoise pure Gaussian noise (z ~ N(0,I)) directly to clean digits. This is conceptually different from the previous denoiser: instead of removing a specific amount of noise, the model must learn to map random noise to the entire distribution of MNIST digits. I used the same architecture (D = 128) and trained for 5 epochs with the same hyperparameters as before.
+            </p>
+
+            <h4>Deliverables: Pure Noise Denoising Results</h4>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs_b/part1_2_3_loss.png" alt="Pure noise loss curve" class="auto-size">
+                    <p><strong>Training Loss Curve for Pure Noise Denoiser</strong></p>
+                </div>
+            </div>
+
+            <h5>Epoch 1 Results</h5>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs_b/part1_2_3_epoch1.png" alt="Pure noise epoch 1" class="auto-size">
+                    <p><strong>Pure Noise Denoising after Epoch 1</strong><br>Top: Noise Input, Bottom: Denoised Output</p>
+                </div>
+            </div>
+
+            <h5>Epoch 5 Results</h5>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs_b/part1_2_3_epoch5.png" alt="Pure noise epoch 5" class="auto-size">
+                    <p><strong>Pure Noise Denoising after Epoch 5</strong><br>Top: Noise Input, Bottom: Denoised Output</p>
+                </div>
+            </div>
+
+            <p>
+                <strong>Observations and Analysis:</strong> The pure noise denoiser produces interesting but limited results. All generated outputs tend to look similar, often resembling a blurry average of multiple digits. This happens because the model trained with MSE loss learns to predict the mean of the training distribution. With no conditioning signal to distinguish between different digits, the model converges to outputting a centroid-like image that minimizes squared distance to all training examples. This shows why single-step denoising doesn't work for generative tasks—we need iterative refinement and proper conditioning to generate diverse, high-quality samples.
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>Part 2: Training a Flow Matching Model</h2>
+            <p>
+                Flow matching fixes the single-step denoiser's limitations by learning to iteratively denoise images. Instead of jumping straight from noise to data, the model learns a continuous path between them. I train it to predict the velocity field (flow) along this path—during training, I sample random points along the trajectory and teach the model which direction to go. At inference, I just start from noise and follow the flow to generate samples.
+            </p>
+
+            <h3>Part 2.1: Adding Time Conditioning to UNet</h3>
+            <p>
+                The UNet needs to know where we are along the denoising trajectory (t ∈ [0,1]). I added time conditioning using two fully-connected blocks that embed the scalar time into high-dimensional vectors, which then modulate UNet features after the bottleneck and first upsampling. This lets the network learn different denoising strategies for different timesteps. I used hidden dimension D = 64.
+            </p>
+
+            <h3>Part 2.2: Training the Time-Conditioned UNet</h3>
+            <p>
+                Training follows a simple procedure: for each batch, I sample clean images x₁ from MNIST, sample random times t ~ Uniform(0,1), and sample Gaussian noise x₀ ~ N(0,I). I then create interpolated samples xₜ = (1-t)x₀ + t·x₁ and train the model to predict the flow v = x₁ - x₀. The model learns to estimate the vector field pointing from the current noisy state toward the clean data manifold. I used batch size 64, initial learning rate 1e-2 with exponential decay (γ = 0.99), and trained for 10 epochs. I saved model checkpoints after each epoch for later sampling.
+            </p>
+
+            <h4>Deliverable: Training Loss Curve</h4>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs_b/part2_2_loss.png" alt="Time-conditioned loss" class="auto-size">
+                    <p><strong>Training Loss for Time-Conditioned UNet</strong></p>
+                </div>
+            </div>
+
+            <p>
+                <strong>Observations:</strong> The loss decreases steadily throughout training, with the learning rate scheduler helping stabilize things. The model learns to predict flow vectors across all time steps, which lets it do iterative denoising at inference time.
+            </p>
+
+            <h3>Part 2.3: Sampling from the Time-Conditioned UNet</h3>
+            <p>
+                At inference time, I generate samples by starting from pure Gaussian noise x₀ and iteratively following the predicted flow. Using 50 timesteps, I discretize the interval [0,1] and at each step compute the flow velocity v = UNet(xₜ, t) and update xₜ₊Δₜ = xₜ + Δt·v. This gradually transforms the noise into structured digits. I loaded the saved model checkpoints from epochs 1, 5, and 10 to generate samples at each training stage. The results improve a lot as training progresses, with early epochs producing blurry shapes and later epochs generating recognizable digits.
+            </p>
+
+            <h4>Deliverables: Sampling Results</h4>
+
+            <h5>Epoch 1 Samples</h5>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs_b/part2_3_epoch1.png" alt="Time samples epoch 1" class="auto-size">
+                    <p><strong>Generated Samples after Epoch 1</strong></p>
+                </div>
+            </div>
+
+            <h5>Epoch 5 Samples</h5>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs_b/part2_3_epoch5.png" alt="Time samples epoch 5" class="auto-size">
+                    <p><strong>Generated Samples after Epoch 5</strong></p>
+                </div>
+            </div>
+
+            <h5>Epoch 10 Samples</h5>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs_b/part2_3_epoch10.png" alt="Time samples epoch 10" class="auto-size">
+                    <p><strong>Generated Samples after Epoch 10</strong></p>
+                </div>
+            </div>
+
+            <p>
+                <strong>Observations:</strong> By epoch 10, the time-conditioned model generates reasonably legible digits. However, there's still no control over which digit gets generated—the model just samples randomly from the entire distribution of 0-9. The results show diversity but would benefit from class conditioning for more targeted generation.
+            </p>
+
+            <h3>Part 2.4: Adding Class Conditioning to UNet</h3>
+            <p>
+                To control which digit gets generated, I added class conditioning using one-hot encoded labels. I added two more FCBlocks to process the 10-dimensional class vectors, which combine with time embeddings: unflatten = c₁ * unflatten + t₁ and up1 = c₂ * up1 + t₂. This lets both time and class influence denoising together.
+            </p>
+            <p>
+                For classifier-free guidance, I randomly drop the class condition 10% of the time during training (setting the one-hot vector to zeros). This teaches the model to work with and without class info, so I can use CFG at inference to boost sample quality.
+            </p>
+
+            <h3>Part 2.5: Training the Class-Conditioned UNet</h3>
+            <p>
+                Training is similar to the time-conditioned case, but now I also pass digit labels from the MNIST dataset. During each training step, I randomly mask out the class information with probability 0.1, training the model to handle both conditional and unconditional scenarios. I used 300 timesteps (increased from 50) to allow finer-grained flow estimation. Other hyperparameters remained the same: batch size 64, initial learning rate 1e-2, exponential decay γ = 0.99, trained for 10 epochs. I saved model checkpoints after each epoch for later sampling.
+            </p>
+
+            <h4>Deliverable: Training Loss Curve</h4>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs_b/part2_5_loss.png" alt="Class-conditioned loss" class="auto-size">
+                    <p><strong>Training Loss for Class-Conditioned UNet</strong></p>
+                </div>
+            </div>
+
+            <p>
+                <strong>Observations:</strong> The training loss curve shows steady improvement. Class conditioning helps the model converge faster because the one-hot class vectors reduce the multimodality the model has to handle. Instead of learning a single unconditional vector field covering all digit classes at once, the model learns class-specific flows, making each prediction task simpler. The CFG dropout training lets the model still work without class conditioning when needed.
+            </p>
+
+            <h3>Part 2.6: Sampling from the Class-Conditioned UNet</h3>
+            <p>
+                At inference time, I use classifier-free guidance (CFG) to improve sample quality. For each sampling step, I compute both conditional flow v_cond = UNet(xₜ, c, t, mask=1) and unconditional flow v_uncond = UNet(xₜ, c, t, mask=0), then extrapolate using v = v_uncond + guidance_scale · (v_cond - v_uncond) where guidance_scale = 5.0. This amplifies the effect of conditioning, producing sharper and more class-consistent samples. I loaded the saved model checkpoints from epochs 1, 5, and 10 to generate samples at each training stage. I generate 4 instances of each digit (0-9) to demonstrate controllable generation.
+            </p>
+
+            <h4>Deliverables: Class-Conditioned Sampling Results</h4>
+
+            <h5>Epoch 1 Samples</h5>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs_b/part2_6_epoch1_with_scheduler.png" alt="Class samples epoch 1" class="auto-size">
+                    <p><strong>Class-Conditioned Samples after Epoch 1 (With Scheduler)</strong><br>4 instances of each digit (0-9)</p>
+                </div>
+            </div>
+
+            <h5>Epoch 5 Samples</h5>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs_b/part2_6_epoch5_with_scheduler.png" alt="Class samples epoch 5" class="auto-size">
+                    <p><strong>Class-Conditioned Samples after Epoch 5 (With Scheduler)</strong><br>4 instances of each digit (0-9)</p>
+                </div>
+            </div>
+
+            <h5>Epoch 10 Samples</h5>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs_b/part2_6_epoch10_with_scheduler.png" alt="Class samples epoch 10" class="auto-size">
+                    <p><strong>Class-Conditioned Samples after Epoch 10 (With Scheduler)</strong><br>4 instances of each digit (0-9)</p>
+                </div>
+            </div>
+
+            <p>
+                <strong>Observations:</strong> Class conditioning with CFG produces high-quality, controllable samples. By epoch 10, each row consistently generates the correct digit class while maintaining diversity across the 4 instances. The guidance scale of 5.0 successfully balances sample quality and diversity, with the extrapolation pushing samples to be more consistent with their class.
+            </p>
+
+            <h3>Removing the Learning Rate Scheduler</h3>
+            <p>
+                As an experiment, I tested whether the exponential learning rate scheduler was actually necessary for good performance. I retrained the class-conditioned model for 10 epochs without the scheduler, using a fixed learning rate of 5e-3 (lower than the initial 1e-2 to avoid instability). To make up for losing the scheduler, I added weight decay regularization (1e-5) to prevent overfitting and kept the same batch size and number of timesteps. I saved model checkpoints after each epoch and generated samples from the checkpoints at epochs 1, 5, and 10 to compare with the scheduled version.
+            </p>
+
+            <h4>Deliverable: Training Loss Without Scheduler</h4>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs_b/part2_6_loss_no_scheduler.png" alt="No scheduler loss" class="auto-size">
+                    <p><strong>Training Loss for Class-Conditioned UNet (No Scheduler)</strong></p>
+                </div>
+            </div>
+
+            <h5>Epoch 1 Samples (No Scheduler)</h5>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs_b/part2_6_epoch1_no_scheduler.png" alt="No scheduler samples epoch 1" class="auto-size">
+                    <p><strong>Class-Conditioned Samples after Epoch 1 (No Scheduler)</strong><br>4 instances of each digit (0-9)</p>
+                </div>
+            </div>
+
+            <h5>Epoch 5 Samples (No Scheduler)</h5>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs_b/part2_6_epoch5_no_scheduler.png" alt="No scheduler samples epoch 5" class="auto-size">
+                    <p><strong>Class-Conditioned Samples after Epoch 5 (No Scheduler)</strong><br>4 instances of each digit (0-9)</p>
+                </div>
+            </div>
+
+            <h5>Epoch 10 Samples (No Scheduler)</h5>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <img src="outputs_b/part2_6_epoch10_no_scheduler.png" alt="No scheduler samples epoch 10" class="auto-size">
+                    <p><strong>Class-Conditioned Samples after Epoch 10 (No Scheduler)</strong><br>4 instances of each digit (0-9)</p>
+                </div>
+            </div>
+
+            <h4>Comparison and Analysis</h4>
+            <p>
+                Comparing the two approaches, both produce class-consistent digits with stable training curves. The no-scheduler version (fixed LR 5e-3 with weight decay) is a bit less crisp in fine details but still generates recognizable and diverse samples. For this relatively simple task and short training time, the scheduler isn't really necessary—a well-chosen constant learning rate with regularization works pretty well. However, the scheduler does produce slightly better quality, and would probably become more important for longer training runs or more complex datasets where fine-tuning convergence matters more.
+            </p>
+        </div>
+
+    </div>
+
+    <a href="../index.html" class="button">Back to Home</a>
+</body>
+</html>

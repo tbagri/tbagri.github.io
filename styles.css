@@ -228,3 +228,31 @@ a.button:hover {
 	border-radius: 8px;
 	box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
+
+/* Section title styling for major parts */
+.section-title {
+	text-align: center;
+	border-bottom: 3px solid #2c3e50;
+	padding-bottom: 10px;
+}
+
+.section-title.with-margin {
+	margin-top: 40px;
+}
+
+/* Project 5 specific: small pixelated comparison images */
+.project5 .comparison-item img {
+	width: 64px;
+	height: 64px;
+	image-rendering: pixelated;
+	image-rendering: -moz-crisp-edges;
+	image-rendering: crisp-edges;
+}
+
+/* Override for larger images in Project 5 Part B */
+.project5 .comparison-item img.auto-size {
+	width: auto;
+	max-width: 100%;
+	height: auto;
+	image-rendering: auto;
+}
